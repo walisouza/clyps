@@ -53,4 +53,20 @@ export const api = {
   },
 
   clipUrl: (clipId: string, download = false) => `/api/clips/${clipId}/file${download ? '?download=1' : ''}`,
+
+  cookies: {
+    status: () => request<{ hasCookies: boolean; uploadedAt?: string; size?: number }>('/cookies'),
+    remove: () => request<{ ok: true }>('/cookies', { method: 'DELETE' }),
+    async upload(file: File): Promise<{ hasCookies: boolean; uploadedAt?: string; size?: number }> {
+      const res = await fetch('/api/cookies', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'text/plain' },
+        body: file,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Falha ao enviar os cookies.');
+      return data as { hasCookies: boolean; uploadedAt?: string; size?: number };
+    },
+  },
 };

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CookiesPanel from '../components/CookiesPanel';
 import { api } from '../lib/api';
 import type { JobOptions } from '../lib/types';
 
@@ -114,8 +115,9 @@ export default function NewClip() {
               onChange={(e) => setUrl(e.target.value)}
             />
             <small className="muted">
-              Qualquer link público de vídeo. Vídeos privados ou restritos podem não baixar.
+              Qualquer link público de vídeo. Para vídeos privados ou que exigem login, envie seus cookies abaixo.
             </small>
+            <CookiesPanel />
           </label>
         ) : (
           <label className="field">

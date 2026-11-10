@@ -20,20 +20,34 @@ export async function probe(file: string): Promise<Probe> {
   };
 }
 
-export async function ytInfo(url: string): Promise<{ title: string; duration: number }> {
-  const { stdout } = await run('yt-dlp', ['--dump-single-json', '--no-playlist', '--no-warnings', '--', url], 120_000);
+/** Cookies no formato Netscape (exportado do navegador) usados pelo yt-dlp quando presente. */
+const withCookies = (args: string[], cookiesPath?: string) =>
+  cookiesPath ? ['--cookies', cookiesPath, ...args] : args;
+
+export async function ytInfo(url: string, cookiesPath?: string): Promise<{ title: string; duration: number }> {
+  const { stdout } = await run(
+    'yt-dlp',
+    withCookies(['--dump-single-json', '--no-playlist', '--no-warnings', '--', url], cookiesPath),
+    120_000,
+  );
   const j = JSON.parse(stdout);
   return { title: String(j.title ?? 'Vídeo'), duration: Number(j.duration ?? 0) };
 }
 
-export async function ytDownload(url: string, out: string): Promise<void> {
-  await run('yt-dlp', [
-    '--no-playlist', '--no-warnings',
-    '-f', 'bv*[height<=1080]+ba/b[height<=1080]/b',
-    '--merge-output-format', 'mp4',
-    '-o', out,
-    '--', url,
-  ]);
+export async function ytDownload(url: string, out: string, cookiesPath?: string): Promise<void> {
+  await run(
+    'yt-dlp',
+    withCookies(
+      [
+        '--no-playlist', '--no-warnings',
+        '-f', 'bv*[height<=1080]+ba/b[height<=1080]/b',
+        '--merge-output-format', 'mp4',
+        '-o', out,
+        '--', url,
+      ],
+      cookiesPath,
+    ),
+  );
 }
 
 export const SEGMENT_SECONDS = 1200;

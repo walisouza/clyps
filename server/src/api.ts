@@ -10,6 +10,7 @@ import {
   userFromToken, type User,
 } from './auth.js';
 import { config } from './config.js';
+import { MAX_COOKIES_BYTES, cookiesStatus, looksLikeNetscapeCookies, removeCookies, saveCookies } from './cookies.js';
 import { db, type ClipRow, type JobRow } from './db.js';
 import { clipsDir } from './pipeline.js';
 import { normalizeOptions } from './types.js';
@@ -170,6 +171,44 @@ export function createApp() {
   api.post('/logout', (req, res) => {
     destroySession(readCookie(req, SESSION_COOKIE));
     res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.json({ ok: true });
+  });
+
+  // ── Cookies do yt-dlp (opcional, para links que exigem login) ──
+  api.get('/cookies', requireAuth, async (req, res) => {
+    res.json(await cookiesStatus((req as AuthedRequest).user.id));
+  });
+
+  api.put('/cookies', requireAuth, async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    if (Number(req.headers['content-length'] ?? 0) > MAX_COOKIES_BYTES) {
+      return void res.status(413).json({ error: 'Arquivo de cookies grande demais.' });
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_COOKIES_BYTES) req.destroy(new Error('too_large'));
+      else chunks.push(chunk);
+    });
+    req.on('end', async () => {
+      if (size === 0) return void res.status(400).json({ error: 'Arquivo vazio.' });
+      const text = Buffer.concat(chunks).toString('utf8');
+      if (!looksLikeNetscapeCookies(text)) {
+        return void res.status(400).json({
+          error: 'Formato inválido. Exporte um cookies.txt no formato Netscape (extensão "Get cookies.txt LOCALLY" ou equivalente).',
+        });
+      }
+      await saveCookies(user.id, text);
+      res.json(await cookiesStatus(user.id));
+    });
+    req.on('error', () => {
+      if (!res.headersSent) res.status(400).json({ error: 'Falha no envio.' });
+    });
+  });
+
+  api.delete('/cookies', requireAuth, async (req, res) => {
+    await removeCookies((req as AuthedRequest).user.id);
     res.json({ ok: true });
   });
 

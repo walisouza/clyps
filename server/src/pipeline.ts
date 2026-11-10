@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { config } from './config.js';
+import { cookiesPath } from './cookies.js';
 import { adjustCredits, db, updateJob, type JobRow } from './db.js';
 import { extractAudioSegments, probe, ytDownload, ytInfo } from './media.js';
 import { renderSelection } from './render.js';
@@ -33,13 +35,19 @@ async function fetchSource(job: JobRow, tmp: string): Promise<{ file: string; ti
     return { file: job.upload_path, title: job.title || 'Vídeo enviado' };
   }
   const url = job.source_url ?? '';
-  const info = await ytInfo(url).catch(() => {
-    throw new UserError('Não foi possível ler esse link. Confira se o vídeo é público (não funciona com vídeos restritos a amigos ou que exigem login).');
+  const userCookies = cookiesPath(job.user_id);
+  const cookieFile = existsSync(userCookies) ? userCookies : undefined;
+  const info = await ytInfo(url, cookieFile).catch(() => {
+    throw new UserError(
+      'Não foi possível ler esse link. Se for um vídeo privado ou que exige login, envie os cookies do navegador na tela de novo corte.',
+    );
   });
   if (info.duration > config.maxDurationSeconds) throw new UserError('O vídeo passa do limite de duração.');
   const file = path.join(tmp, 'source.mp4');
-  await ytDownload(url, file).catch(() => {
-    throw new UserError('Não foi possível baixar esse vídeo. Alguns sites bloqueiam o download; tente baixar o arquivo e enviar pela aba "Arquivo".');
+  await ytDownload(url, file, cookieFile).catch(() => {
+    throw new UserError(
+      'Não foi possível baixar esse vídeo. Alguns sites bloqueiam o download; tente baixar o arquivo e enviar pela aba "Arquivo".',
+    );
   });
   return { file, title: info.title };
 }

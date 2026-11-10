@@ -140,6 +140,15 @@ button.primary.big { font-size: 1.15rem; padding: 15px 20px; }
 details summary { cursor: pointer; font-weight: 600; font-size: 0.88rem; }
 details p { margin-top: 6px; }
 
+/* Painel de cookies */
+.cookies-panel { display: grid; gap: 10px; padding: 10px 12px; border: 1.5px dashed var(--line); border-radius: 10px; background: #faf7ef; }
+.cookies-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cookies-row > :first-child { flex: 1; min-width: 0; }
+.cookies-help { display: grid; gap: 8px; border-top: 1.5px dashed var(--line); padding-top: 10px; }
+.cookies-help code { background: #ebe6d9; }
+.cookies-help em { font-style: italic; }
+.link.small { font-size: 0.82rem; }
+
 @media (max-width: 640px) {
   .topbar { flex-wrap: wrap; gap: 10px 16px; }
   .account .muted { display: none; }
