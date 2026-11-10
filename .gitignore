@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+data/
 smoke-out/
 *.log
 .DS_Store

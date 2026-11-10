@@ -18,17 +18,6 @@ export type JobOptions = {
   context?: string;
 };
 
-export type Job = {
-  id: string;
-  user_id: string;
-  status: string;
-  source_type: 'url' | 'upload';
-  source_url: string | null;
-  storage_key: string | null;
-  title: string | null;
-  options: Partial<JobOptions>;
-};
-
 export type Selection = {
   start: number;
   end: number;
@@ -43,8 +32,8 @@ export const LENGTH_RANGES: Record<ClipLength, [number, number]> = {
   long: [45, 90],
 };
 
-export function normalizeOptions(raw: Partial<JobOptions> | null | undefined): JobOptions {
-  const o = raw ?? {};
+export function normalizeOptions(raw: unknown): JobOptions {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const pick = <T extends string>(v: unknown, allowed: readonly T[], d: T): T =>
     allowed.includes(v as T) ? (v as T) : d;
   const maxClips = Math.round(Number(o.maxClips));
@@ -57,6 +46,6 @@ export function normalizeOptions(raw: Partial<JobOptions> | null | undefined): J
     captionStyle: pick(o.captionStyle, ['karaoke', 'bold', 'minimal', 'none'] as const, 'karaoke'),
     captionPosition: pick(o.captionPosition, ['bottom', 'center', 'top'] as const, 'bottom'),
     highlightColor: /^#[0-9a-fA-F]{6}$/.test(String(o.highlightColor)) ? String(o.highlightColor) : '#FFE14D',
-    context: typeof o.context === 'string' ? o.context.slice(0, 1000) : undefined,
+    context: typeof o.context === 'string' && o.context.trim() ? o.context.trim().slice(0, 1000) : undefined,
   };
 }

@@ -1,25 +1,27 @@
-# Clyps numa VPS: app web (Caddy) + worker de cortes.
-# Uso: cp .env.example .env  →  preencher  →  docker compose up -d --build
+# Clyps numa VPS: tudo em um servidor (app web + API + fila de cortes), com o Caddy na frente.
+# Uso: cp .env.example .env  →  docker compose up -d --build
 services:
-  web:
-    build:
-      context: ./web
-      args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+  app:
+    build: .
+    env_file: .env
+    volumes:
+      - clyps_data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    restart: unless-stopped
-
-  worker:
-    build: ./worker
-    env_file: .env
+    depends_on:
+      - app
     restart: unless-stopped
 
 volumes:
+  clyps_data:
   caddy_data:

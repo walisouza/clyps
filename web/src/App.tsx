@@ -1,7 +1,6 @@
-import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
-import { configured, supabase } from './lib/supabase';
+import { api, type User } from './lib/api';
 import History from './pages/History';
 import JobDetail from './pages/JobDetail';
 import Login from './pages/Login';
@@ -15,29 +14,27 @@ export function Logo() {
   );
 }
 
+type Session = { user: User | null; signupOpen: boolean };
+
 export default function App() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [session, setSession] = useState<Session | undefined>(undefined);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!configured) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
+    api.me().then(setSession).catch(() => setError(true));
   }, []);
 
-  if (!configured) {
-    return (
-      <main className="center-screen">
-        <Logo />
-        <p className="notice">
-          Falta configurar o Supabase. Copie <code>web/.env.example</code> para <code>web/.env</code> e preencha{' '}
-          <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code>.
-        </p>
-      </main>
-    );
+  if (error) return <main className="center-screen error">Não foi possível falar com o servidor.</main>;
+  if (!session) return <main className="center-screen muted">Carregando…</main>;
+  if (!session.user) {
+    return <Login signupOpen={session.signupOpen} onAuth={(user) => setSession({ user, signupOpen: false })} />;
   }
-  if (session === undefined) return <main className="center-screen muted">Carregando…</main>;
-  if (!session) return <Login />;
+
+  const user = session.user;
+  async function logout() {
+    await api.logout().catch(() => {});
+    setSession({ user: null, signupOpen: false });
+  }
 
   return (
     <div className="shell">
@@ -50,15 +47,15 @@ export default function App() {
           <NavLink to="/historico">Histórico</NavLink>
         </nav>
         <div className="account">
-          <span className="muted mono">{session.user.email}</span>
-          <button className="link" onClick={() => supabase.auth.signOut()}>
+          <span className="muted mono">{user.email}</span>
+          <button className="link" onClick={logout}>
             Sair
           </button>
         </div>
       </header>
       <main className="page">
         <Routes>
-          <Route path="/" element={<NewClip userId={session.user.id} />} />
+          <Route path="/" element={<NewClip />} />
           <Route path="/historico" element={<History />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />

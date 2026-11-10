@@ -1,5 +1,5 @@
 {
-  "name": "clyps-worker",
+  "name": "clyps-server",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,10 +9,13 @@
     "smoke": "tsx scripts/smoke.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.22.3",
     "tsx": "^4.19.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^4.17.25",
     "@types/node": "^22.5.0",
     "typescript": "^5.5.4"
   }

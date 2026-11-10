@@ -35,7 +35,6 @@ export type Clip = {
   start_ms: number;
   end_ms: number;
   transcript: string | null;
-  storage_key: string;
   aspect: string;
 };
 

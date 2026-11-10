@@ -1,34 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { api } from '../lib/api';
 import { STAGE_LABEL, STATUS_LABEL, formatDuration, type Clip, type Job } from '../lib/types';
-
-type ClipWithUrls = Clip & { playUrl: string | null; downloadUrl: string | null };
-
-const slug = (t: string) =>
-  t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 60) || 'clipe';
-
-async function loadClips(jobId: string): Promise<ClipWithUrls[]> {
-  const { data, error } = await supabase.from('clips').select('*').eq('job_id', jobId).order('idx');
-  if (error) throw new Error(error.message);
-  const clips = data as Clip[];
-  const bucket = supabase.storage.from('clips');
-  return Promise.all(
-    clips.map(async (c) => {
-      const [play, download] = await Promise.all([
-        bucket.createSignedUrl(c.storage_key, 3600),
-        bucket.createSignedUrl(c.storage_key, 3600, { download: `${slug(c.title)}.mp4` }),
-      ]);
-      return { ...c, playUrl: play.data?.signedUrl ?? null, downloadUrl: download.data?.signedUrl ?? null };
-    }),
-  );
-}
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
-  const [clips, setClips] = useState<ClipWithUrls[] | null>(null);
+  const [clips, setClips] = useState<Clip[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -36,18 +17,14 @@ export default function JobDetail() {
     let timer: ReturnType<typeof setTimeout>;
 
     async function tick() {
-      const { data, error: e } = await supabase.from('jobs').select('*').eq('id', id).maybeSingle();
-      if (!alive) return;
-      if (e) return setError(e.message);
-      if (!data) return setError('Corte não encontrado.');
-      const j = data as Job;
-      setJob(j);
-      if (j.status === 'completed') {
-        loadClips(j.id)
-          .then((c) => alive && setClips(c))
-          .catch((err) => alive && setError(err.message));
-      } else if (j.status === 'queued' || j.status === 'processing') {
-        timer = setTimeout(tick, 3000);
+      try {
+        const data = await api.getJob(id!);
+        if (!alive) return;
+        setJob(data.job);
+        setClips(data.clips);
+        if (data.job.status === 'queued' || data.job.status === 'processing') timer = setTimeout(tick, 3000);
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : 'Erro ao carregar.');
       }
     }
     tick();
@@ -56,6 +33,15 @@ export default function JobDetail() {
       clearTimeout(timer);
     };
   }, [id]);
+
+  async function remove() {
+    try {
+      await api.deleteJob(id!);
+      navigate('/historico');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível apagar.');
+    }
+  }
 
   if (error) return <p className="error">{error}</p>;
   if (!job) return <p className="muted">Carregando…</p>;
@@ -98,17 +84,11 @@ export default function JobDetail() {
         </section>
       )}
 
-      {job.status === 'completed' && clips === null && <p className="muted">Carregando clipes…</p>}
-
-      {clips && (
+      {clips.length > 0 && (
         <div className="clip-grid">
           {clips.map((c) => (
             <article key={c.id} className="card clip">
-              {c.playUrl ? (
-                <video src={c.playUrl} controls preload="metadata" playsInline />
-              ) : (
-                <div className="video-missing muted">Arquivo indisponível</div>
-              )}
+              <video src={api.clipUrl(c.id)} controls preload="metadata" playsInline />
               <div className="clip-body">
                 <div className="clip-meta mono">
                   <span className="score">{c.score ?? '—'}</span>
@@ -125,14 +105,32 @@ export default function JobDetail() {
                     <p className="small">{c.transcript}</p>
                   </details>
                 )}
-                {c.downloadUrl && (
-                  <a className="primary" href={c.downloadUrl}>
-                    Baixar MP4
-                  </a>
-                )}
+                <a className="primary" href={api.clipUrl(c.id, true)}>
+                  Baixar MP4
+                </a>
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {job.status !== 'processing' && (
+        <div className="row">
+          {confirmDelete ? (
+            <>
+              <span className="small">Apagar este corte e todos os clipes? Não dá para desfazer.</span>
+              <button className="link error" onClick={remove}>
+                Sim, apagar
+              </button>
+              <button className="link" onClick={() => setConfirmDelete(false)}>
+                Cancelar
+              </button>
+            </>
+          ) : (
+            <button className="link muted" onClick={() => setConfirmDelete(true)}>
+              Apagar este corte
+            </button>
+          )}
         </div>
       )}
     </div>

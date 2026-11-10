@@ -1,27 +1,24 @@
 import { useState, type FormEvent } from 'react';
 import { Logo } from '../App';
-import { supabase } from '../lib/supabase';
+import { api, type User } from '../lib/api';
 
-export default function Login() {
-  const [mode, setMode] = useState<'in' | 'up'>('in');
+export default function Login({ signupOpen, onAuth }: { signupOpen: boolean; onAuth: (user: User) => void }) {
+  const [mode, setMode] = useState<'in' | 'up'>(signupOpen ? 'up' : 'in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setMessage(null);
-    const { data, error } =
-      mode === 'in'
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
-    setBusy(false);
-    if (error) {
-      setMessage({ kind: 'error', text: mode === 'in' ? 'E-mail ou senha incorretos.' : error.message });
-    } else if (mode === 'up' && !data.session) {
-      setMessage({ kind: 'ok', text: 'Conta criada. Confirme pelo link que enviamos para o seu e-mail.' });
+    setError(null);
+    try {
+      const { user } = mode === 'in' ? await api.login(email, password) : await api.signup(email, password);
+      onAuth(user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Algo deu errado.');
+      setBusy(false);
     }
   }
 
@@ -29,7 +26,11 @@ export default function Login() {
     <main className="center-screen">
       <form className="card auth" onSubmit={submit}>
         <Logo />
-        <p className="muted">Vídeos longos viram cortes prontos para postar.</p>
+        <p className="muted">
+          {mode === 'up'
+            ? 'Crie a conta de administrador para começar.'
+            : 'Vídeos longos viram cortes prontos para postar.'}
+        </p>
         <label>
           E-mail
           <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -39,19 +40,21 @@ export default function Login() {
           <input
             type="password"
             required
-            minLength={6}
+            minLength={8}
             autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        {message && <p className={message.kind === 'error' ? 'error' : 'ok'}>{message.text}</p>}
+        {error && <p className="error">{error}</p>}
         <button className="primary" disabled={busy}>
           {busy ? 'Aguarde…' : mode === 'in' ? 'Entrar' : 'Criar conta'}
         </button>
-        <button type="button" className="link" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>
-          {mode === 'in' ? 'Criar uma conta' : 'Já tenho conta'}
-        </button>
+        {signupOpen && (
+          <button type="button" className="link" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>
+            {mode === 'in' ? 'Criar uma conta' : 'Já tenho conta'}
+          </button>
+        )}
       </form>
     </main>
   );

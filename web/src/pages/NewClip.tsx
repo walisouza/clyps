@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import type { JobOptions } from '../lib/types';
 
 const DEFAULTS: JobOptions = {
@@ -46,7 +46,7 @@ function Segmented<T extends string>(props: {
   );
 }
 
-export default function NewClip({ userId }: { userId: string }) {
+export default function NewClip() {
   const navigate = useNavigate();
   const [source, setSource] = useState<'url' | 'upload'>('url');
   const [url, setUrl] = useState('');
@@ -62,30 +62,21 @@ export default function NewClip({ userId }: { userId: string }) {
     setError(null);
 
     try {
-      let row: Record<string, unknown>;
+      let created: { id: string };
       if (source === 'url') {
         if (!/^https?:\/\/\S+$/i.test(url.trim())) throw new Error('Cole um link válido (começando com http).');
-        row = { source_type: 'url', source_url: url.trim() };
+        setBusy('Criando o corte…');
+        created = await api.createJob({ sourceType: 'url', url: url.trim() }, opts);
       } else {
         if (!file) throw new Error('Escolha um arquivo de vídeo.');
         if (!ACCEPTED.includes(file.type)) throw new Error('Formato não aceito. Use MP4, MOV ou WebM.');
         if (file.size > MAX_UPLOAD_BYTES) throw new Error('O arquivo passa de 4 GB.');
-        setBusy('Enviando o vídeo…');
-        const safeName = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
-        const key = `${userId}/${crypto.randomUUID()}-${safeName}`;
-        const up = await supabase.storage.from('uploads').upload(key, file, { contentType: file.type });
-        if (up.error) throw new Error(`Falha no envio: ${up.error.message}`);
-        row = { source_type: 'upload', storage_key: key, title: file.name };
+        setBusy('Enviando o vídeo… 0%');
+        const { uploadId } = await api.upload(file, (p) => setBusy(`Enviando o vídeo… ${p}%`));
+        setBusy('Criando o corte…');
+        created = await api.createJob({ sourceType: 'upload', uploadId, title: file.name }, opts);
       }
-
-      setBusy('Criando o job…');
-      const { data, error: insertError } = await supabase
-        .from('jobs')
-        .insert({ ...row, options: { ...opts, context: opts.context?.trim() || undefined } })
-        .select('id')
-        .single();
-      if (insertError) throw new Error(insertError.message);
-      navigate(`/jobs/${data.id}`);
+      navigate(`/jobs/${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Algo deu errado.');
     } finally {

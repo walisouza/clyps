@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { STATUS_LABEL, formatDuration, type Job } from '../lib/types';
 
 export default function History() {
@@ -8,15 +8,10 @@ export default function History() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('jobs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data, error: e }) => {
-        if (e) setError(e.message);
-        else setJobs(data as Job[]);
-      });
+    api
+      .listJobs()
+      .then(({ jobs: list }) => setJobs(list))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar.'));
   }, []);
 
   return (
