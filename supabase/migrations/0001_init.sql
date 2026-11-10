@@ -203,6 +203,9 @@ end $$;
 revoke all on function public.adjust_credits(uuid, uuid, integer, text) from public, anon, authenticated;
 grant execute on function public.adjust_credits(uuid, uuid, integer, text) to service_role;
 
+-- A função do gatilho não deve ser chamável pela API.
+revoke all on function public.handle_new_user() from public, anon, authenticated;
+
 -- ───────────────────────── Storage ─────────────────────────
 insert into storage.buckets (id, name, public, allowed_mime_types)
 values
