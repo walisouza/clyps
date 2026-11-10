@@ -54,6 +54,13 @@ test('refinement respects sentence edges, selected duration and non-overlap', ()
   assert.deepEqual(refine([{ ...picks[0], start: NaN }], words, opts, 60), []);
 });
 
+test('providers without punctuation still produce valid bounded clips', () => {
+  const plain = words.map(w => ({ ...w, word: 'fala' }));
+  const result = refine([{ start: 10, end: 30, title: 't', reason: '', score: 90 }], plain, normalizeOptions({ clipLength: 'short' }), 60);
+  assert.equal(result.length, 1);
+  assert.ok(result[0].end - result[0].start >= 15);
+});
+
 test('audio settings are allowlisted; original applies no filter', () => {
   assert.equal(normalizeOptions({ audioEnhancement: 'malicious-filter' }).audioEnhancement, 'clean');
   assert.equal(audioFilter('off'), undefined);

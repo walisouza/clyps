@@ -99,6 +99,14 @@ export function refine(selections: Selection[], words: Word[], opts: JobOptions,
         const end = Math.min(videoDuration, last.end + 0.18);
         if (end - start >= min && end - start <= max) return { ...s, start, end };
       }
+      // Some timestamp providers omit punctuation and short pauses. Keep the LLM's
+      // sentence choice, snapping only to actual nearby words rather than inventing timings.
+      const inside = words.filter(w => w.start >= s.start - 0.25 && w.end <= s.end + 0.25);
+      if (inside.length) {
+        const start = Math.max(0, inside[0].start - 0.12);
+        const end = Math.min(videoDuration, inside[inside.length - 1].end + 0.18);
+        if (end - start >= min && end - start <= max) return { ...s, start, end };
+      }
       return null;
     })
     .filter((s): s is Selection => s !== null)
