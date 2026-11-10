@@ -49,6 +49,7 @@ export async function renderSelection(
     layout: opts.aspect === 'original' ? 'fill' : opts.layout,
     assPath,
     hasAudio: info.hasAudio,
+    audioEnhancement: opts.audioEnhancement,
   });
 
   return { file, transcript: clipWords.map((w) => w.word.trim()).join(' '), selection };

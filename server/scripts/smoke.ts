@@ -4,7 +4,8 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { run } from '../src/exec.js';
-import { probe } from '../src/media.js';
+import { probe, extractAudioSegments } from '../src/media.js';
+import { analyzeEnergy } from '../src/audio.js';
 import { renderSelection } from '../src/render.js';
 import { mockSelect } from '../src/select.js';
 import { mockTranscribe } from '../src/transcribe.js';
@@ -23,9 +24,13 @@ await run('ffmpeg', [
 
 const info = await probe(src);
 const words = mockTranscribe(info.duration);
+const energy = await analyzeEnergy(src, outDir, words);
+if (!energy.length) throw new Error('Análise de energia vazia');
+const audio = await extractAudioSegments(src, outDir, 'voice');
+if (!audio.length) throw new Error('Extração de áudio vazia');
 
 const variants: Partial<JobOptions>[] = [
-  { aspect: '9:16', layout: 'fill', captionStyle: 'karaoke', clipLength: 'short', maxClips: 2 },
+  { audioEnhancement: 'voice', aspect: '9:16', layout: 'fill', captionStyle: 'karaoke', clipLength: 'short', maxClips: 2 },
   { aspect: '9:16', layout: 'blur', captionStyle: 'bold', clipLength: 'short', maxClips: 1 },
   { aspect: '1:1', layout: 'blur', captionStyle: 'minimal', captionPosition: 'top', clipLength: 'short', maxClips: 1 },
   { aspect: 'original', captionStyle: 'none', clipLength: 'short', maxClips: 1 },

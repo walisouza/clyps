@@ -14,7 +14,7 @@ function num(key: string, fallback: number): number {
 export const config = {
   /** MOCK_AI=1 pula transcrição e LLM (gera dados falsos) para testar sem chaves. */
   get mock() {
-    return process.env.MOCK_AI === '1';
+    return process.env.MOCK_AI === '1' && process.env.NODE_ENV === 'test';
   },
 
   port: num('PORT', 3000),

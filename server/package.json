@@ -6,7 +6,8 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",

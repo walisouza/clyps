@@ -15,6 +15,8 @@ export type JobOptions = {
   captionStyle: CaptionStyle;
   captionPosition: CaptionPosition;
   highlightColor: string;
+  audioEnhancement: 'off' | 'clean' | 'voice';
+  selectionFocus: 'balanced' | 'impact' | 'energy';
   context?: string;
 };
 
@@ -38,6 +40,8 @@ export function normalizeOptions(raw: unknown): JobOptions {
     allowed.includes(v as T) ? (v as T) : d;
   const maxClips = Math.round(Number(o.maxClips));
   return {
+    audioEnhancement: pick(o.audioEnhancement, ['off', 'clean', 'voice'] as const, 'clean'),
+    selectionFocus: pick(o.selectionFocus, ['balanced', 'impact', 'energy'] as const, 'balanced'),
     language: pick(o.language, ['pt', 'en', 'es'] as const, 'pt'),
     maxClips: Number.isFinite(maxClips) ? Math.min(20, Math.max(1, maxClips)) : 6,
     clipLength: pick(o.clipLength, ['short', 'medium', 'long'] as const, 'medium'),

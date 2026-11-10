@@ -12,7 +12,9 @@ import {
 import { config } from './config.js';
 import { MAX_COOKIES_BYTES, cookiesStatus, looksLikeNetscapeCookies, removeCookies, saveCookies } from './cookies.js';
 import { db, type ClipRow, type JobRow } from './db.js';
-import { clipsDir } from './pipeline.js';
+import { clipsDir, assertAiConfigured } from './pipeline.js';
+import { postCaption } from './post-caption.js';
+import { metaAvailable, listPublications, schedulePublication, validMediaSignature } from './meta.js';
 import { normalizeOptions } from './types.js';
 
 type AuthedRequest = Request & { user: User };
@@ -243,6 +245,7 @@ export function createApp() {
   // ── Jobs ──
   api.post('/jobs', requireAuth, (req, res) => {
     const user = (req as AuthedRequest).user;
+    try { assertAiConfigured(); } catch (err) { return void res.status(503).json({ error: (err as Error).message }); }
     const body = req.body ?? {};
     const options = JSON.stringify(normalizeOptions(body.options));
     const id = randomUUID();
@@ -282,10 +285,56 @@ export function createApp() {
     const job = db().prepare('select * from jobs where id = ? and user_id = ?').get(req.params.id, user.id) as JobRow | undefined;
     if (!job) return void res.status(404).json({ error: 'Corte não encontrado.' });
     if (job.status === 'processing') return void res.status(409).json({ error: 'Aguarde o processamento terminar para apagar.' });
+    const sending = db().prepare("select 1 from publications p join clips c on c.id = p.clip_id where c.job_id = ? and p.status in ('queued','processing','publishing','uncertain')").get(job.id);
+    if (sending) return void res.status(409).json({ error: 'Há publicações pendentes. Cancele o agendamento ou confira o resultado do envio antes de apagar.' });
     db().prepare('delete from jobs where id = ?').run(job.id);
     await rm(clipsDir(job.id), { recursive: true, force: true });
     if (job.upload_path) await rm(job.upload_path, { force: true });
     res.json({ ok: true });
+  });
+
+  api.get('/meta/status', requireAuth, (req, res) => {
+    res.json({ available: metaAvailable((req as AuthedRequest).user.id) });
+  });
+  api.get('/clips/:id/publications', requireAuth, (req, res) => {
+    res.json({ publications: listPublications((req as AuthedRequest).user.id, String(req.params.id)) });
+  });
+  api.post('/clips/:id/publications', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const clip = db().prepare('select * from clips where id = ? and user_id = ?').get(req.params.id, user.id) as ClipRow | undefined;
+    if (!clip) return void res.status(404).json({ error: 'Clipe não encontrado.' });
+    try {
+      const id = schedulePublication(user.id, clip, req.body?.caption, req.body?.scheduledAt);
+      res.status(201).json({ id });
+    } catch (err) { res.status(400).json({ error: (err as Error).message }); }
+  });
+  api.delete('/publications/:id', requireAuth, (req, res) => {
+    const changed = db().prepare("update publications set status = 'cancelled' where id = ? and user_id = ? and status = 'queued'")
+      .run(req.params.id, (req as AuthedRequest).user.id);
+    if (!changed.changes) return void res.status(409).json({ error: 'Somente publicações que ainda estão na fila podem ser canceladas.' });
+    res.json({ ok: true });
+  });
+  // Meta fetches only this short-lived signed URL; normal clip routes remain authenticated.
+  api.get('/meta/media/:id', (req, res) => {
+    if (!validMediaSignature(String(req.params.id), req.query.expires, req.query.signature)) return void res.sendStatus(403);
+    const clip = db().prepare('select * from clips where id = ?').get(req.params.id) as ClipRow | undefined;
+    if (!clip || !existsSync(clip.file_path) || !metaAvailable(clip.user_id)) return void res.sendStatus(404);
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(clip.file_path, { headers: { 'Content-Type': 'video/mp4' } });
+  });
+
+  api.post('/clips/:id/caption', requireAuth, async (req, res, next) => {
+    try {
+      const user = (req as AuthedRequest).user;
+      const clip = db().prepare('select * from clips where id = ? and user_id = ?').get(req.params.id, user.id) as ClipRow | undefined;
+      if (!clip) return void res.status(404).json({ error: 'Clipe não encontrado.' });
+      if (clip.post_caption) return void res.json(JSON.parse(clip.post_caption));
+      const job = db().prepare('select options from jobs where id = ?').get(clip.job_id) as { options: string };
+      const result = await postCaption(clip.transcript ?? '', normalizeOptions(JSON.parse(job.options)).language);
+      // Cache only generated summaries. A transient provider failure can be retried later.
+      if (result.source === 'ai') db().prepare('update clips set post_caption = ? where id = ?').run(JSON.stringify(result), clip.id);
+      res.json(result);
+    } catch (err) { next(err); }
   });
 
   // ── Arquivo do clipe (com suporte a Range para o player) ──

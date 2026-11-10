@@ -2,6 +2,7 @@ import { createApp } from './api.js';
 import { config } from './config.js';
 import { claimNextJob, db, recoverInterruptedJobs } from './db.js';
 import { processJob } from './pipeline.js';
+import { initPublications, publicationTick } from './meta.js';
 
 let stopping = false;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -27,6 +28,9 @@ async function workerLoop() {
 
 db();
 recoverInterruptedJobs();
+initPublications();
+const publicationTimer = setInterval(() => { publicationTick().catch(err => console.error('Fila Instagram:', err.message)); }, 60_000);
+publicationTick().catch(err => console.error('Fila Instagram:', err.message));
 
 const server = createApp().listen(config.port, () => {
   console.log(`Clyps no ar na porta ${config.port}${config.mock ? ' (MOCK_AI: transcrição e seleção simuladas)' : ''}.`);
@@ -39,6 +43,7 @@ workerLoop();
 
 function shutdown() {
   stopping = true;
+  clearInterval(publicationTimer);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
 }

@@ -159,3 +159,12 @@ details p { margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+.download-dialog { width: min(600px, calc(100vw - 32px)); max-height: 90dvh; overflow-y: auto; border: 1.5px solid var(--ink); border-radius: var(--radius); padding: 28px; color: var(--ink); background: var(--card); font-family: var(--display); }
+.download-dialog::backdrop { background: rgb(0 0 0 / .7); backdrop-filter: blur(5px); }
+.dialog-head { justify-content: space-between; align-items: center; }
+.dialog-head h2 { margin: 0; }
+.dialog-head button { font-size: 24px; padding: 4px 12px; }
+.publication-list { padding-left: 20px; }
+.publication-list li { margin-bottom: 12px; }
+.download-dialog textarea { width: 100%; box-sizing: border-box; }

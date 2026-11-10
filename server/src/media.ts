@@ -1,6 +1,8 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { run } from './exec.js';
+import { audioFilter } from './audio.js';
+import type { JobOptions } from './types.js';
 import type { Aspect, Layout } from './types.js';
 
 export type Probe = { duration: number; width: number; height: number; hasAudio: boolean };
@@ -53,9 +55,10 @@ export async function ytDownload(url: string, out: string, cookiesPath?: string)
 export const SEGMENT_SECONDS = 1200;
 
 /** Extrai o áudio em MP3 mono leve, em partes de 20 min (limite de upload das APIs de transcrição). */
-export async function extractAudioSegments(file: string, dir: string): Promise<string[]> {
+export async function extractAudioSegments(file: string, dir: string, enhancement: JobOptions['audioEnhancement'] = 'off'): Promise<string[]> {
   await run('ffmpeg', [
     '-y', '-v', 'error', '-i', file,
+    ...(audioFilter(enhancement) ? ['-af', audioFilter(enhancement)!] : []),
     '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k',
     '-f', 'segment', '-segment_time', String(SEGMENT_SECONDS), '-reset_timestamps', '1',
     path.join(dir, 'audio-%03d.mp3'),
@@ -85,6 +88,7 @@ export type RenderInput = {
   layout: Layout;
   assPath?: string;
   hasAudio: boolean;
+  audioEnhancement?: JobOptions['audioEnhancement'];
 };
 
 /** Corta o trecho, reenquadra para o formato pedido e queima a legenda. */
@@ -109,9 +113,13 @@ export async function renderClip(r: RenderInput): Promise<void> {
     '-filter_complex', chain.join(';'),
     '-map', '[v]',
   ];
-  if (r.hasAudio) args.push('-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k');
+  if (r.hasAudio) {
+    args.push('-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k', '-ar', '48000');
+    const filter = audioFilter(r.audioEnhancement ?? 'off');
+    if (filter) args.push('-af', filter);
+  }
   args.push(
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
+    '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     r.out,
   );

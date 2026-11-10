@@ -97,6 +97,7 @@ export type ClipRow = {
   transcript: string | null;
   file_path: string;
   aspect: string;
+  post_caption: string | null;
 };
 
 let conn: Database.Database | null = null;
@@ -108,6 +109,8 @@ export function db(): Database.Database {
     conn.pragma('journal_mode = WAL');
     conn.pragma('foreign_keys = ON');
     conn.exec(SCHEMA);
+    const columns = conn.prepare('pragma table_info(clips)').all() as { name: string }[];
+    if (!columns.some(c => c.name === 'post_caption')) conn.exec('alter table clips add column post_caption text');
   }
   return conn;
 }
