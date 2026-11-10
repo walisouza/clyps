@@ -1,0 +1,8 @@
+# SITE_ADDRESS=:80 serve por HTTP no IP da VPS.
+# SITE_ADDRESS=clyps.seudominio.com faz o Caddy emitir o certificado HTTPS sozinho.
+{$SITE_ADDRESS::80} {
+	root * /srv
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}

@@ -20,7 +20,24 @@ web (React + Vite)  ──►  Supabase (Auth, Postgres, Storage)  ◄──  wo
 | `worker` | Processamento de vídeo (Node 22, TypeScript, FFmpeg, yt-dlp) |
 | `web` | Interface (React, Vite, supabase-js) |
 
-## Colocar no ar
+## Colocar no ar numa VPS (caminho mais simples)
+
+Uma VPS com Docker roda o app web e o worker juntos.
+
+```bash
+# na VPS (Ubuntu/Debian)
+curl -fsSL https://get.docker.com | sh
+git clone https://github.com/walisouza/clyps && cd clyps
+cp .env.example .env && nano .env     # preencha a service role key e as chaves de IA
+docker compose up -d --build
+docker compose logs -f worker         # deve mostrar "Clyps worker no ar"
+```
+
+O app abre em `http://IP-DA-VPS`. Com um domínio apontado para a VPS, coloque-o em `SITE_ADDRESS` no `.env` e rode `docker compose up -d` de novo: o HTTPS é emitido sozinho. Para atualizar depois: `git pull && docker compose up -d --build`.
+
+Recomendado: 2 vCPU e 4 GB de RAM ou mais (a renderização usa CPU), e espaço em disco para o vídeo de origem durante o processamento.
+
+## Colocar no ar (serviços separados)
 
 ### 1. Supabase
 1. Crie um projeto em supabase.com.
