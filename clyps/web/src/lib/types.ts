@@ -1,0 +1,67 @@
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+export type JobOptions = {
+  language: 'pt' | 'en' | 'es';
+  maxClips: number;
+  clipLength: 'short' | 'medium' | 'long';
+  aspect: '9:16' | '1:1' | '4:5' | 'original';
+  layout: 'fill' | 'blur';
+  captionStyle: 'karaoke' | 'bold' | 'minimal' | 'none';
+  captionPosition: 'bottom' | 'center' | 'top';
+  highlightColor: string;
+  context?: string;
+};
+
+export type Job = {
+  id: string;
+  status: JobStatus;
+  stage: string | null;
+  progress: number;
+  source_type: 'url' | 'upload';
+  source_url: string | null;
+  title: string | null;
+  duration_seconds: number | null;
+  options: Partial<JobOptions>;
+  error: string | null;
+  created_at: string;
+};
+
+export type Clip = {
+  id: string;
+  idx: number;
+  title: string;
+  reason: string | null;
+  score: number | null;
+  start_ms: number;
+  end_ms: number;
+  transcript: string | null;
+  storage_key: string;
+  aspect: string;
+};
+
+export const STATUS_LABEL: Record<JobStatus, string> = {
+  queued: 'Na fila',
+  processing: 'Processando',
+  completed: 'Pronto',
+  failed: 'Falhou',
+  cancelled: 'Cancelado',
+};
+
+export const STAGE_LABEL: Record<string, string> = {
+  starting: 'Iniciando',
+  downloading: 'Baixando o vídeo',
+  transcribing: 'Transcrevendo a fala',
+  selecting: 'Escolhendo os melhores trechos',
+  rendering: 'Renderizando os clipes',
+  done: 'Concluído',
+};
+
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+    : `${m}:${String(sec).padStart(2, '0')}`;
+}
