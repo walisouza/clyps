@@ -109,10 +109,13 @@ export default function NewClip() {
             Link do vídeo
             <input
               type="url"
-              placeholder="https://youtube.com/watch?v=…"
+              placeholder="YouTube, Facebook, Instagram, TikTok, Twitch…"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
+            <small className="muted">
+              Qualquer link público de vídeo. Vídeos privados ou restritos podem não baixar.
+            </small>
           </label>
         ) : (
           <label className="field">

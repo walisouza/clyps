@@ -34,11 +34,13 @@ async function fetchSource(job: JobRow, tmp: string): Promise<{ file: string; ti
   }
   const url = job.source_url ?? '';
   const info = await ytInfo(url).catch(() => {
-    throw new UserError('Não foi possível ler esse link. Confira se o vídeo é público.');
+    throw new UserError('Não foi possível ler esse link. Confira se o vídeo é público (não funciona com vídeos restritos a amigos ou que exigem login).');
   });
   if (info.duration > config.maxDurationSeconds) throw new UserError('O vídeo passa do limite de duração.');
   const file = path.join(tmp, 'source.mp4');
-  await ytDownload(url, file);
+  await ytDownload(url, file).catch(() => {
+    throw new UserError('Não foi possível baixar esse vídeo. Alguns sites bloqueiam o download; tente baixar o arquivo e enviar pela aba "Arquivo".');
+  });
   return { file, title: info.title };
 }
 
