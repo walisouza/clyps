@@ -12,14 +12,15 @@ import { mockSelect, selectClips } from './select.js';
 import { mockTranscribe, transcribe } from './transcribe.js';
 import { normalizeOptions } from './types.js';
 
-/** Erro com mensagem que pode ser mostrada ao usuário. */
-class UserError extends Error {}
+import { UserError } from './errors.js';
+import { analyzeEnergy } from './audio.js';
 
 export const clipsDir = (jobId: string) => path.join(config.dataDir, 'clips', jobId);
 const nowIso = () => new Date().toISOString();
 
-function assertAiConfigured(): void {
+export function assertAiConfigured(): void {
   if (config.mock) return;
+  if (process.env.MOCK_AI === '1') throw new UserError('Modo de teste bloqueado. Defina MOCK_AI=0 e configure STT_API_KEY, LLM_API_KEY e LLM_MODEL no servidor.');
   try {
     void config.sttApiKey;
     void config.llmApiKey;
@@ -83,15 +84,19 @@ export async function processJob(job: JobRow): Promise<void> {
 
     const words = config.mock
       ? mockTranscribe(info.duration)
-      : await transcribe(await extractAudioSegments(source.file, tmp), opts.language, async (done, total) =>
+      : await transcribe(await extractAudioSegments(source.file, tmp, opts.audioEnhancement), opts.language, async (done, total) =>
           updateJob(job.id, { progress: 20 + Math.round((done / total) * 30) }),
         );
     if (words.length < 20) throw new UserError('Não encontramos fala suficiente no vídeo para gerar cortes.');
 
     updateJob(job.id, { stage: 'selecting', progress: 52 });
+    const energy = config.mock ? [] : await analyzeEnergy(source.file, tmp, words).catch((err) => {
+      console.warn('Análise de energia indisponível; mantendo seleção pelo conteúdo.', err);
+      return [];
+    });
     const selections = config.mock
       ? mockSelect(words, opts, info.duration)
-      : await selectClips(words, opts, source.title, info.duration);
+      : await selectClips(words, opts, source.title, info.duration, energy);
     if (!selections.length) throw new UserError('A IA não encontrou trechos bons para corte neste vídeo.');
 
     updateJob(job.id, { stage: 'rendering', progress: 60 });

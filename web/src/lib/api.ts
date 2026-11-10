@@ -1,5 +1,7 @@
 import type { Clip, Job, JobOptions } from './types';
 
+export type Publication = { id: string; status: string; scheduled_at: number; error: string | null; media_id: string | null };
+
 export type User = { id: string; email: string; credits: number };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -17,6 +19,11 @@ const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
+  caption: (id: string) => post<{ caption: string; source: 'ai' | 'excerpt' }>(`/clips/${id}/caption`, {}),
+  metaStatus: () => request<{ available: boolean }>('/meta/status'),
+  publications: (id: string) => request<{ publications: Publication[] }>(`/clips/${id}/publications`),
+  publish: (id: string, caption: string, scheduledAt?: string) => post<{ id: string }>(`/clips/${id}/publications`, { caption, scheduledAt }),
+  cancelPublication: (id: string) => request<{ ok: true }>(`/publications/${id}`, { method: 'DELETE' }),
   me: () => request<{ user: User | null; signupOpen: boolean }>('/me'),
   login: (email: string, password: string) => post<{ user: User }>('/login', { email, password }),
   signup: (email: string, password: string) => post<{ user: User }>('/signup', { email, password }),

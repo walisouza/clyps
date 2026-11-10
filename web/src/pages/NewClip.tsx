@@ -6,6 +6,8 @@ import type { JobOptions } from '../lib/types';
 
 const DEFAULTS: JobOptions = {
   language: 'pt',
+  audioEnhancement: 'clean',
+  selectionFocus: 'balanced',
   maxClips: 6,
   clipLength: 'medium',
   aspect: '9:16',
@@ -139,6 +141,17 @@ export default function NewClip() {
 
       <section className="card">
         <h2>Cortes</h2>
+        <Segmented label="Prioridade dos cortes" value={opts.selectionFocus} onChange={(v) => set('selectionFocus', v)} options={[
+          { value: 'balanced', label: 'Equilibrado', hint: 'conteúdo + energia' },
+          { value: 'impact', label: 'Impacto', hint: 'ideias e histórias fortes' },
+          { value: 'energy', label: 'Energia', hint: 'fala mais expressiva' },
+        ]} />
+        <Segmented label="Tratamento da voz" value={opts.audioEnhancement} onChange={(v) => set('audioEnhancement', v)} options={[
+          { value: 'off', label: 'Original' },
+          { value: 'clean', label: 'Limpeza leve', hint: 'ruído e volume' },
+          { value: 'voice', label: 'Foco na voz', hint: 'celular e ambientes reverberantes' },
+        ]} />
+        <p className="muted small">O tratamento melhora a clareza e nivela o volume. Eco forte pode continuar audível; compare com o áudio original.</p>
         <Segmented
           label="Duração de cada clipe"
           value={opts.clipLength}

@@ -2,33 +2,62 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
 import { SEGMENT_SECONDS } from './media.js';
+import { UserError } from './errors.js';
 import type { Word } from './types.js';
 
-async function transcribeFile(file: string, language: string): Promise<Word[]> {
+export function parseTranscript(json: any): Word[] {
+  if (!Array.isArray(json.words)) {
+    if (!String(json.text ?? '').trim()) return [];
+    throw new UserError('O serviço de transcrição não retornou tempos por palavra. Configure um modelo compatível, como whisper-1.');
+  }
+  const words: Word[] = [];
+  for (const item of json.words) {
+    const word = String(item.word ?? '').trim();
+    const start = Number(item.start), end = Number(item.end);
+    if (!word || item.start == null || item.end == null || !Number.isFinite(start) || !Number.isFinite(end)
+      || start < 0 || end <= start || end > SEGMENT_SECONDS + 2) {
+      throw new UserError('O serviço retornou tempos de legenda inválidos. Tente transcrever novamente.');
+    }
+    words.push({ word, start, end });
+  }
+  if (!words.length && String(json.text ?? '').trim()) {
+    throw new UserError('A transcrição retornou texto sem tempos por palavra. Verifique o modelo de transcrição.');
+  }
+  return words.sort((a, b) => a.start - b.start);
+}
+
+export async function transcribeFile(file: string, language: string): Promise<Word[]> {
   const form = new FormData();
   form.append('file', new Blob([await readFile(file)], { type: 'audio/mpeg' }), path.basename(file));
   form.append('model', config.sttModel);
   form.append('language', language);
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'word');
-
-  let lastError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(`${config.sttBaseUrl}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${config.sttApiKey}` },
-      body: form,
-    });
-    if (res.ok) {
-      const json: any = await res.json();
-      const words = Array.isArray(json.words) ? json.words : [];
-      return words.map((w: any) => ({ word: String(w.word), start: Number(w.start), end: Number(w.end) }));
+    let res: Response;
+    try {
+      res = await fetch(`${config.sttBaseUrl.replace(/\/$/, '')}/audio/transcriptions`, {
+        method: 'POST', headers: { Authorization: `Bearer ${config.sttApiKey}` }, body: form,
+        signal: AbortSignal.timeout(180_000),
+      });
+    } catch {
+      if (attempt === 3) throw new UserError('Não foi possível conectar ao serviço de transcrição. Tente novamente.');
+      await new Promise(r => setTimeout(r, attempt * 1500));
+      continue;
     }
-    lastError = `${res.status} ${(await res.text()).slice(0, 300)}`;
-    if (res.status < 500 && res.status !== 429) break;
-    await new Promise((r) => setTimeout(r, attempt * 3000));
+    if (res.ok) {
+      let json: any;
+      try { json = await res.json(); } catch { throw new UserError('Resposta inválida do serviço de transcrição.'); }
+      return parseTranscript(json);
+    }
+    if (res.status === 401 || res.status === 403) throw new UserError('A chave de transcrição foi recusada. Verifique STT_API_KEY no servidor.');
+    if (res.status === 400) throw new UserError('O serviço recusou o áudio ou o modelo. Use um modelo com verbose_json e tempos por palavra, como whisper-1.');
+    if ((res.status < 500 && res.status !== 429) || attempt === 3) {
+      throw new UserError(res.status === 429 ? 'Limite ou saldo do serviço de transcrição atingido. Verifique a conta da API.' : 'O serviço de transcrição está indisponível. Tente novamente.');
+    }
+    await new Promise(r => setTimeout(r, attempt * 3000));
   }
-  throw new Error(`Falha na transcrição: ${lastError}`);
+  throw new UserError('Não foi possível transcrever o áudio.');
 }
 
 /** Transcreve as partes de áudio em ordem e devolve palavras com tempo absoluto. */

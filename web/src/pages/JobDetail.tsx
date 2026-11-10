@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import DownloadDialog from '../components/DownloadDialog';
 import { STAGE_LABEL, STATUS_LABEL, formatDuration, type Clip, type Job } from '../lib/types';
 
 export default function JobDetail() {
@@ -9,6 +10,7 @@ export default function JobDetail() {
   const [job, setJob] = useState<Job | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [downloadClip, setDownloadClip] = useState<Clip | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function JobDetail() {
 
   return (
     <div className="stack">
+      {downloadClip && <DownloadDialog key={downloadClip.id} clip={downloadClip} onClose={() => setDownloadClip(null)} />}
       <div className="page-head">
         <Link to="/historico" className="link">
           ← Histórico
@@ -105,9 +108,9 @@ export default function JobDetail() {
                     <p className="small">{c.transcript}</p>
                   </details>
                 )}
-                <a className="primary" href={api.clipUrl(c.id, true)}>
+                <button type="button" className="primary" onClick={() => setDownloadClip(c)}>
                   Baixar MP4
-                </a>
+                </button>
               </div>
             </article>
           ))}

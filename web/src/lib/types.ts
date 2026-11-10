@@ -9,6 +9,8 @@ export type JobOptions = {
   captionStyle: 'karaoke' | 'bold' | 'minimal' | 'none';
   captionPosition: 'bottom' | 'center' | 'top';
   highlightColor: string;
+  audioEnhancement: 'off' | 'clean' | 'voice';
+  selectionFocus: 'balanced' | 'impact' | 'energy';
   context?: string;
 };
 
