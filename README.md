@@ -33,7 +33,7 @@ docker compose logs -f app            # deve mostrar "Clyps no ar"
 
 Abra `http://IP-DA-VPS`. A primeira conta criada é a de administrador; depois dela o cadastro fecha sozinho (para abrir de novo, `ALLOW_SIGNUP=1`).
 
-O `.env.example` já vem com `MOCK_AI=1`: tudo funciona, mas a transcrição e a escolha dos trechos são simuladas. Para usar IA de verdade, edite o `.env`, apague essa linha, preencha `ASSEMBLYAI_API_KEY` e rode `docker compose up -d` de novo.
+O `.env.example` já vem com `MOCK_AI=1`: tudo funciona, mas a transcrição e a escolha dos trechos são simuladas. Para usar IA de verdade, edite o `.env`, apague essa linha, preencha `ASSEMBLYAI_API_KEY` (cada variável numa linha própria, sem espaços em volta do `=`) e rode `docker compose up -d --force-recreate app`. Para conferir: `docker compose exec app sh -c 'echo ${ASSEMBLYAI_API_KEY:+chave carregada}'`.
 
 - **AssemblyAI:** uma chave cobre a transcrição (tempo por palavra) e, pelo LLM Gateway, a escolha dos trechos e a legenda do post. Modelo padrão `claude-sonnet-4-6` (troque com `LLM_MODEL`).
 - **Auphonic (opcional):** com `AUPHONIC_API_KEY`, aparece o tratamento de voz "Profissional", que manda cada clipe ao Auphonic (remoção de ruído e eco com IA, -14 LUFS). Se o Auphonic falhar, o clipe sai com o tratamento Forte local e o corte mostra um aviso.

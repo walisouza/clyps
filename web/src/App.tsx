@@ -61,6 +61,12 @@ export default function App() {
           <code>MOCK_AI=1</code>.
         </div>
       )}
+      {!session.mock && session.features && !session.features.transcription && (
+        <div className="mock-banner" role="alert">
+          <strong>Transcrição não configurada.</strong> O servidor não encontrou <code>ASSEMBLYAI_API_KEY</code> no{' '}
+          <code>.env</code>; os cortes vão falhar até ela ser adicionada (em uma linha própria) e o app reiniciado.
+        </div>
+      )}
       <main className="page">
         <Routes>
           <Route path="/" element={<NewClip features={session.features} />} />
