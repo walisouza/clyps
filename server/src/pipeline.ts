@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { sttAudioFilter } from './audio.js';
 import { auphonicEnhance } from './auphonic.js';
-import { config } from './config.js';
+import { config, isPlaceholder } from './config.js';
 import { cookiesPath } from './cookies.js';
 import { adjustCredits, db, updateJob, type JobRow } from './db.js';
 import { measureEnergy, normalizeEnergy } from './energy.js';
@@ -21,6 +21,9 @@ const nowIso = () => new Date().toISOString();
 
 function assertAiConfigured(): void {
   if (config.mock) return;
+  if (isPlaceholder(config.assemblyaiApiKey)) {
+    throw new UserError('A ASSEMBLYAI_API_KEY no .env ainda é o texto de exemplo. Troque pela sua chave da AssemblyAI.');
+  }
   if (!config.sttProvider) {
     throw new UserError('Falta configurar a transcrição no servidor: ASSEMBLYAI_API_KEY (ou STT_API_KEY) no .env.');
   }

@@ -6,6 +6,14 @@ function required(key: string): string {
   return v;
 }
 
+/** Lê uma chave do .env sem espaços, quebra de linha do Windows (\r) ou aspas em volta. */
+function secret(key: string): string {
+  return (process.env[key] ?? '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+}
+
+/** true se a chave ainda é o texto de exemplo das instruções. */
+export const isPlaceholder = (v: string) => /cole_a_chave|cole_aqui|sua_chave|your[_-]?key/i.test(v);
+
 function num(key: string, fallback: number): number {
   const v = Number(process.env[key]);
   return Number.isFinite(v) && v > 0 ? v : fallback;
@@ -29,20 +37,20 @@ export const config = {
 
   // AssemblyAI: transcrição com tempo por palavra e, pela mesma chave, o LLM Gateway.
   get assemblyaiApiKey() {
-    return process.env.ASSEMBLYAI_API_KEY || '';
+    return secret('ASSEMBLYAI_API_KEY');
   },
   assemblyaiBaseUrl: process.env.ASSEMBLYAI_BASE_URL || 'https://api.assemblyai.com',
 
   /** Qual serviço transcreve: AssemblyAI se houver chave; senão, API compatível com OpenAI. */
   get sttProvider(): 'assemblyai' | 'openai' | null {
     if (this.assemblyaiApiKey) return 'assemblyai';
-    if (process.env.STT_API_KEY) return 'openai';
+    if (secret('STT_API_KEY')) return 'openai';
     return null;
   },
 
   // Auphonic: tratamento profissional de voz (ruído e eco), por clipe.
   get auphonicApiKey() {
-    return process.env.AUPHONIC_API_KEY || '';
+    return secret('AUPHONIC_API_KEY');
   },
   auphonicBaseUrl: process.env.AUPHONIC_BASE_URL || 'https://auphonic.com',
 
@@ -51,7 +59,7 @@ export const config = {
     return process.env.STT_BASE_URL || 'https://api.openai.com/v1';
   },
   get sttApiKey() {
-    return required('STT_API_KEY');
+    return secret('STT_API_KEY') || required('STT_API_KEY');
   },
   get sttModel() {
     return process.env.STT_MODEL || 'whisper-1';
@@ -61,7 +69,7 @@ export const config = {
   // Sem LLM_API_KEY, usa o LLM Gateway da AssemblyAI com a mesma chave da transcrição.
   /** true quando o LLM é o Gateway da AssemblyAI (autenticação sem "Bearer", sem response_format). */
   get llmViaAssemblyAI() {
-    return !process.env.LLM_API_KEY && Boolean(this.assemblyaiApiKey);
+    return !secret('LLM_API_KEY') && Boolean(this.assemblyaiApiKey);
   },
   get llmBaseUrl() {
     const custom = process.env.LLM_BASE_URL;
@@ -70,7 +78,7 @@ export const config = {
     return this.llmViaAssemblyAI ? 'https://llm-gateway.assemblyai.com/v1' : 'https://api.openai.com/v1';
   },
   get llmApiKey() {
-    return process.env.LLM_API_KEY || this.assemblyaiApiKey || required('LLM_API_KEY');
+    return secret('LLM_API_KEY') || this.assemblyaiApiKey || required('LLM_API_KEY');
   },
   get llmModel() {
     return process.env.LLM_MODEL || (this.llmViaAssemblyAI ? 'claude-sonnet-4-6' : required('LLM_MODEL'));
