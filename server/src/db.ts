@@ -55,6 +55,38 @@ create table if not exists clips (
   unique (job_id, idx)
 );
 
+create table if not exists meta_accounts (
+  user_id text not null references users (id) on delete cascade,
+  page_id text not null,
+  page_name text not null,
+  page_token text not null,
+  page_picture text,
+  ig_user_id text,
+  ig_username text,
+  ig_picture text,
+  updated_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  primary key (user_id, page_id)
+);
+
+create table if not exists posts (
+  id text primary key,
+  user_id text not null references users (id) on delete cascade,
+  clip_id text not null references clips (id) on delete cascade,
+  network text not null,
+  page_id text not null,
+  caption text not null default '',
+  scheduled_at text not null,
+  status text not null default 'scheduled',
+  remote_id text,
+  permalink text,
+  error text,
+  origin text,
+  created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  published_at text
+);
+create index if not exists posts_due_idx on posts (status, scheduled_at);
+create index if not exists posts_clip_idx on posts (clip_id);
+
 create table if not exists credit_ledger (
   id integer primary key autoincrement,
   user_id text not null references users (id) on delete cascade,

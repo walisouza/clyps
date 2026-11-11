@@ -1,5 +1,5 @@
 import type { Framing } from './framing';
-import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, VideoPreview } from './types';
+import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, MetaStatus, Network, Post, VideoPreview } from './types';
 
 export type User = { id: string; email: string; credits: number; isAdmin: boolean };
 
@@ -30,7 +30,7 @@ export const api = {
   deleteUser: (id: string) => request<{ ok: true }>(`/users/${id}`, { method: 'DELETE' }),
 
   listJobs: () => request<{ jobs: Job[] }>('/jobs'),
-  getJob: (id: string) => request<{ job: Job; clips: Clip[] }>(`/jobs/${id}`),
+  getJob: (id: string) => request<{ job: Job; clips: Clip[]; posts: Post[] }>(`/jobs/${id}`),
   deleteJob: (id: string) => request<{ ok: true }>(`/jobs/${id}`, { method: 'DELETE' }),
   retryJob: (id: string) => post<{ ok: true }>(`/jobs/${id}/retry`, {}),
   createJob: (
@@ -84,6 +84,16 @@ export const api = {
       framing: Framing;
     },
   ) => request<{ ok: true }>(`/clips/${clipId}/editor`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  meta: {
+    status: () => request<MetaStatus>('/meta/status'),
+    connectUrl: '/api/meta/connect',
+    disconnect: () => request<{ ok: true }>('/meta', { method: 'DELETE' }),
+    publish: (clipId: string, body: { targets: { network: Network; pageId: string }[]; caption: string; scheduledAt?: string }) =>
+      post<{ posts: Post[] }>(`/clips/${clipId}/posts`, body),
+    cancel: (postId: string) => request<{ ok: true }>(`/posts/${postId}`, { method: 'DELETE' }),
+    retry: (postId: string) => post<{ ok: true }>(`/posts/${postId}/retry`, {}),
+  },
 
   cookies: {
     status: () => request<{ hasCookies: boolean; uploadedAt?: string; size?: number }>('/cookies'),

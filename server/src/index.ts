@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { rm } from 'node:fs/promises';
 import { claimNextJob, db, recoverInterruptedJobs, staleFailedUploads, updateJob } from './db.js';
 import { resumePendingRerenders } from './editor.js';
+import { startScheduler } from './meta.js';
 import { processJob } from './pipeline.js';
 
 let stopping = false;
@@ -30,6 +31,7 @@ async function workerLoop() {
 db();
 recoverInterruptedJobs();
 resumePendingRerenders();
+startScheduler();
 
 const KEEP_FAILED_UPLOAD_DAYS = 7;
 async function cleanupFailedUploads() {

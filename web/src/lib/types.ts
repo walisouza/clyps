@@ -30,7 +30,7 @@ export type Job = {
   created_at: string;
 };
 
-export type Features = { auphonic: boolean; transcription: 'speaches' | 'assemblyai' | 'openai' | null; textAi?: boolean };
+export type Features = { auphonic: boolean; transcription: 'speaches' | 'assemblyai' | 'openai' | null; textAi?: boolean; meta?: boolean };
 
 export type Clip = {
   id: string;
@@ -119,3 +119,28 @@ export function formatDuration(totalSeconds: number): string {
     ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
     : `${m}:${String(sec).padStart(2, '0')}`;
 }
+
+export type Network = 'instagram' | 'facebook';
+export type PostStatus = 'scheduled' | 'publishing' | 'published' | 'failed' | 'cancelled';
+export type Post = {
+  id: string;
+  account: string | null;
+  clipId: string;
+  network: Network;
+  pageId: string;
+  caption: string;
+  scheduledAt: string;
+  status: PostStatus;
+  permalink: string | null;
+  error: string | null;
+  createdAt: string;
+  publishedAt: string | null;
+};
+export type MetaAccount = {
+  pageId: string;
+  pageName: string;
+  pagePicture: string | null;
+  instagram: { id: string; username: string | null; picture: string | null } | null;
+  updatedAt: string;
+};
+export type MetaStatus = { configured: boolean; callbackUrl: string; accounts: MetaAccount[] };

@@ -79,6 +79,17 @@ O banco já tem `users.credits` e `credit_ledger`. Cada job grava o custo em `jo
 
 Cada clipe pronto tem um botão **Editar**: ajustar início e fim (com marcação pelo player), enquadrar o vídeo (zoom de 1× a 3×, arrastar para escolher o que aparece, alternar entre preencher a tela e vídeo inteiro com fundo desfocado), ligar ou desligar a legenda, trocar estilo, tamanho, posição e cor, corrigir o texto da legenda trecho a trecho e editar o título e a legenda do post. Ao salvar, o clipe é gerado de novo a partir de uma versão limpa guardada no servidor (no formato do vídeo original e com o áudio tratado, sem legenda, com 3 s de folga antes e depois), o que é bem mais rápido que o processamento completo.
 
+## Publicar no Instagram e no Facebook
+
+Cada clipe tem o botão **Publicar**: escolhe as contas (Reels do Instagram e da Página do Facebook), edita a legenda e publica na hora ou agenda. O agendamento fica no próprio Clyps, que publica no horário; a lista embaixo do clipe mostra o status, o link do post e permite cancelar ou tentar de novo.
+
+1. Em developers.facebook.com, no seu app, adicione os casos de uso **Gerenciar tudo na sua Página** e **Gerenciar mensagens e conteúdo no Instagram** (ou o produto Login do Facebook), com as permissões `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `business_management`, `instagram_basic` e `instagram_content_publish`.
+2. Em Login do Facebook → Configurações, cadastre o URI de redirecionamento `https://SEU-DOMINIO/api/meta/callback`.
+3. Na VPS: `./scripts/meta.sh` (pede o App ID e o App Secret, confere com a Meta e reinicia o app).
+4. No Clyps, em **Conta**, clique em **Conectar com o Facebook** e libere as Páginas e os Instagrams.
+
+Com o app em modo de desenvolvimento, funciona para as contas de quem tem função no app (administrador, desenvolvedor ou testador). O Instagram precisa ser profissional (Criador ou Empresa) e ligado a uma Página. A Meta baixa o vídeo por um link temporário assinado do próprio Clyps, então o site precisa estar em HTTPS. No Facebook, clipes 9:16 de 3 a 90 s saem como Reels; os outros saem como vídeo da Página.
+
 ## Limitações conhecidas
 
 - O enquadramento começa pelo centro e é ajustado à mão no editor; ainda não segue o rosto de quem fala.

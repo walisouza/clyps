@@ -17,6 +17,9 @@ import { clipsDir } from './pipeline.js';
 import { editorData, isEditable, saveEdit } from './editor.js';
 import { UserError } from './errors.js';
 import { normalizeOptions } from './types.js';
+import {
+  accountNames, createPosts, disconnect, finishLogin, listAccounts, loginUrl, postJson, runDuePosts, verifyPublicClip, type PostRow,
+} from './meta.js';
 
 type AuthedRequest = Request & { user: User };
 
@@ -164,7 +167,7 @@ export function createApp() {
       user,
       signupOpen: signupOpen(),
       mock: config.mock,
-      features: { auphonic: Boolean(config.auphonicApiKey), transcription: config.sttProvider, textAi: config.llmConfigured },
+      features: { auphonic: Boolean(config.auphonicApiKey), transcription: config.sttProvider, textAi: config.llmConfigured, meta: config.metaConfigured },
     });
   });
 
@@ -384,7 +387,11 @@ export function createApp() {
     const job = db().prepare('select * from jobs where id = ? and user_id = ?').get(req.params.id, user.id) as JobRow | undefined;
     if (!job) return void res.status(404).json({ error: 'Corte não encontrado.' });
     const clips = db().prepare('select * from clips where job_id = ? order by idx').all(job.id) as ClipRow[];
-    res.json({ job: jobJson(job), clips: job.status === 'completed' ? clips.map(clipJson) : [] });
+    const posts = db()
+      .prepare('select p.* from posts p join clips c on c.id = p.clip_id where c.job_id = ? order by p.scheduled_at')
+      .all(job.id) as PostRow[];
+    const names = accountNames(user.id);
+    res.json({ job: jobJson(job), clips: job.status === 'completed' ? clips.map(clipJson) : [], posts: posts.map((p) => postJson(p, names)) });
   });
 
   api.post('/jobs/:id/retry', requireAuth, (req, res) => {
@@ -427,6 +434,101 @@ export function createApp() {
     else res.sendFile(file, { headers: { 'Content-Type': 'video/mp4' } });
   });
 
+  // ── Link público e temporário do clipe, usado pela Meta para baixar o vídeo. ──
+  api.get('/public/clips/:id/:exp/:sig.mp4', (req, res) => {
+    const { id, exp, sig } = req.params;
+    const clip = verifyPublicClip(id, exp, sig)
+      ? (db().prepare('select file_path from clips where id = ?').get(id) as { file_path: string } | undefined)
+      : undefined;
+    if (!clip || !existsSync(clip.file_path)) return void res.status(404).json({ error: 'Link inválido ou expirado.' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(clip.file_path, { headers: { 'Content-Type': 'video/mp4' } });
+  });
+
+  // ── Meta (Facebook e Instagram) ──
+  const originOf = (req: Request) => `${req.protocol}://${req.get('host')}`;
+
+  api.get('/meta/status', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    res.json({
+      configured: config.metaConfigured,
+      callbackUrl: `${config.publicUrl || originOf(req)}/api/meta/callback`,
+      accounts: listAccounts(user.id),
+    });
+  });
+
+  api.get('/meta/connect', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    try {
+      res.redirect(loginUrl(user.id, originOf(req)));
+    } catch (err) {
+      res.redirect(`/conta?meta=erro&msg=${encodeURIComponent((err as Error).message)}`);
+    }
+  });
+
+  api.get('/meta/callback', async (req, res) => {
+    const user = userFromToken(readCookie(req, SESSION_COOKIE));
+    const back = (q: string) => res.redirect(`/conta?${q}`);
+    if (!user) return back(`meta=erro&msg=${encodeURIComponent('Entre no Clyps antes de conectar com o Facebook.')}`);
+    if (req.query.error) {
+      const why = String(req.query.error_description || req.query.error_reason || 'conexão cancelada');
+      return back(`meta=erro&msg=${encodeURIComponent(`O Facebook não concluiu a conexão (${why}).`)}`);
+    }
+    try {
+      const n = await finishLogin(user.id, String(req.query.state ?? ''), String(req.query.code ?? ''), originOf(req));
+      back(`meta=ok&n=${n}`);
+    } catch (err) {
+      const msg = err instanceof UserError ? err.message : 'Falha ao conectar com o Facebook.';
+      console.error('[meta] callback:', err);
+      back(`meta=erro&msg=${encodeURIComponent(msg)}`);
+    }
+  });
+
+  api.delete('/meta', requireAuth, (req, res) => {
+    disconnect((req as AuthedRequest).user.id);
+    res.json({ ok: true });
+  });
+
+  api.get('/clips/:id/posts', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const posts = db().prepare('select * from posts where clip_id = ? and user_id = ? order by scheduled_at').all(req.params.id, user.id) as PostRow[];
+    const name = accountNames(user.id);
+    res.json({ posts: posts.map((p) => postJson(p, name)) });
+  });
+
+  api.post('/clips/:id/posts', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const clip = db().prepare('select * from clips where id = ? and user_id = ?').get(req.params.id, user.id) as ClipRow | undefined;
+    if (!clip) return void res.status(404).json({ error: 'Clipe não encontrado.' });
+    try {
+      const rows = createPosts(user.id, clip, req.body ?? {}, originOf(req));
+      const name = accountNames(user.id);
+      res.json({ posts: rows.map((p) => postJson(p, name)) });
+    } catch (err) {
+      if (err instanceof UserError) return void res.status(400).json({ error: err.message });
+      throw err;
+    }
+  });
+
+  api.delete('/posts/:id', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const r = db()
+      .prepare("update posts set status = 'cancelled' where id = ? and user_id = ? and status in ('scheduled', 'failed')")
+      .run(req.params.id, user.id);
+    if (!r.changes) return void res.status(409).json({ error: 'Esta publicação não pode mais ser cancelada.' });
+    res.json({ ok: true });
+  });
+
+  api.post('/posts/:id/retry', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const r = db()
+      .prepare("update posts set status = 'scheduled', error = null, scheduled_at = ? where id = ? and user_id = ? and status = 'failed'")
+      .run(new Date().toISOString(), req.params.id, user.id);
+    if (!r.changes) return void res.status(409).json({ error: 'Só dá para tentar de novo uma publicação que falhou.' });
+    void runDuePosts();
+    res.json({ ok: true });
+  });
+
   // ── Editor de clipe ──
   api.get('/clips/:id/editor', requireAuth, (req, res) => {
     const user = (req as AuthedRequest).user;
@@ -467,6 +569,9 @@ export function createApp() {
   app.use('/api', api);
 
   // ── App web ──
+  // A Meta só baixa vídeos de sites cujo robots.txt libera o robô dela.
+  app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nAllow: /api/public/\nDisallow: /\n'));
+
   if (existsSync(path.join(config.webDir, 'index.html'))) {
     app.use(express.static(config.webDir, { index: false, maxAge: '1h' }));
     app.get('*', (_req, res) => res.sendFile(path.join(config.webDir, 'index.html')));

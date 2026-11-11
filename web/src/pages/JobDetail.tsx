@@ -1,10 +1,61 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import PostCaptionModal from '../components/PostCaptionModal';
+import PublishModal from '../components/PublishModal';
 import { api } from '../lib/api';
-import { STAGE_LABEL, STATUS_LABEL, formatDuration, type Clip, type Job } from '../lib/types';
+import { STAGE_LABEL, STATUS_LABEL, formatDuration, type Clip, type Job, type Post } from '../lib/types';
 
 /** Para clipes antigos, gerados antes da legenda automática. */
+const POST_STATUS: Record<Post['status'], string> = {
+  scheduled: 'Agendado',
+  publishing: 'Publicando…',
+  published: 'Publicado',
+  failed: 'Falhou',
+  cancelled: 'Cancelado',
+};
+
+function PostRow({ p, onChange }: { p: Post; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function act(fn: () => Promise<unknown>) {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fn();
+      onChange();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Falhou.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  const when = new Date(p.publishedAt ?? p.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return (
+    <li className={`post-row ${p.status}`}>
+      <span className={`meta-net ${p.network === 'instagram' ? 'ig' : 'fb'}`}>{p.network === 'instagram' ? 'ig' : 'f'}</span>
+      <span>
+        <strong>{POST_STATUS[p.status]}</strong> {p.account && <span>{p.account}</span>} <span className="muted">{when}</span>
+      </span>
+      {p.permalink && (
+        <a className="link" href={p.permalink} target="_blank" rel="noreferrer">
+          Ver
+        </a>
+      )}
+      {p.status === 'scheduled' && (
+        <button type="button" className="link" disabled={busy} onClick={() => act(() => api.meta.cancel(p.id))}>
+          Cancelar
+        </button>
+      )}
+      {p.status === 'failed' && (
+        <button type="button" className="link" disabled={busy} onClick={() => act(() => api.meta.retry(p.id))}>
+          Tentar de novo
+        </button>
+      )}
+      {(p.error || err) && p.status !== 'cancelled' && <span className="error small post-error">{err || p.error}</span>}
+    </li>
+  );
+}
+
 function fallbackCaption(c: Clip): string {
   return `${c.title}\n\n#cortes #shorts #reels`;
 }
@@ -14,6 +65,8 @@ export default function JobDetail() {
   const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [publishing, setPublishing] = useState<Clip | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [modal, setModal] = useState<{ clip: Clip; downloading: boolean } | null>(null);
@@ -33,7 +86,13 @@ export default function JobDetail() {
         if (!alive) return;
         setJob(data.job);
         setClips(data.clips);
-        const busy = data.job.status === 'queued' || data.job.status === 'processing' || data.clips.some((c) => c.rerendering);
+        setPosts(data.posts ?? []);
+        // Também acompanha publicações em andamento ou que vencem nos próximos minutos.
+        const soon = Date.now() + 3 * 60 * 1000;
+        const posting = (data.posts ?? []).some(
+          (p) => p.status === 'publishing' || (p.status === 'scheduled' && new Date(p.scheduledAt).getTime() < soon),
+        );
+        const busy = data.job.status === 'queued' || data.job.status === 'processing' || data.clips.some((c) => c.rerendering) || posting;
         if (busy) timer = setTimeout(tick, 3000);
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : 'Erro ao carregar.');
@@ -170,11 +229,37 @@ export default function JobDetail() {
                   <button type="button" className="link small" onClick={() => setModal({ clip: c, downloading: false })}>
                     Legenda do post
                   </button>
+                  {!c.rerendering && (
+                    <button type="button" className="chip strong" onClick={() => setPublishing(c)}>
+                      Publicar
+                    </button>
+                  )}
                 </div>
+                {posts.some((p) => p.clipId === c.id && p.status !== 'cancelled') && (
+                  <ul className="post-list">
+                    {posts
+                      .filter((p) => p.clipId === c.id && p.status !== 'cancelled')
+                      .map((p) => (
+                        <PostRow key={p.id} p={p} onChange={() => setReload((n) => n + 1)} />
+                      ))}
+                  </ul>
+                )}
               </div>
             </article>
           ))}
         </div>
+      )}
+
+      {publishing && (
+        <PublishModal
+          clip={publishing}
+          caption={publishing.post_caption || fallbackCaption(publishing)}
+          onClose={() => setPublishing(null)}
+          onDone={() => {
+            setPublishing(null);
+            setReload((n) => n + 1);
+          }}
+        />
       )}
 
       {modal && (

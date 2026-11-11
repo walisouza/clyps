@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import MetaCard from '../components/MetaCard';
 import { api, type User } from '../lib/api';
 
 type Account = { id: string; email: string; createdAt: string; isAdmin: boolean };
@@ -194,6 +195,7 @@ export default function AccountPage({ user }: { user: User }) {
         <h1>Conta</h1>
         <p className="muted mono">{user.email}</p>
       </div>
+      <MetaCard />
       <ChangePassword />
       {user.isAdmin && <Users me={user} />}
     </div>

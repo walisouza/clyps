@@ -101,6 +101,40 @@ export const config = {
     return process.env.LLM_MODEL || (this.llmViaAssemblyAI ? 'claude-sonnet-4-6' : required('LLM_MODEL'));
   },
 
+  // Meta (Facebook e Instagram): publicar e agendar os clipes. App em developers.facebook.com.
+  get metaAppId() {
+    return secret('META_APP_ID');
+  },
+  get metaAppSecret() {
+    return secret('META_APP_SECRET');
+  },
+  get metaConfigured() {
+    return Boolean(this.metaAppId && this.metaAppSecret);
+  },
+  get metaGraphVersion() {
+    return (process.env.META_GRAPH_VERSION ?? '').trim() || 'v25.0';
+  },
+  /** Endereços da Graph API (trocáveis só para teste). */
+  get metaGraphUrl() {
+    return (process.env.META_GRAPH_URL ?? '').trim().replace(/\/+$/, '') || 'https://graph.facebook.com';
+  },
+  get metaRuploadUrl() {
+    return (process.env.META_RUPLOAD_URL ?? '').trim().replace(/\/+$/, '') || 'https://rupload.facebook.com';
+  },
+  get metaDialogUrl() {
+    return (process.env.META_DIALOG_URL ?? '').trim().replace(/\/+$/, '') || 'https://www.facebook.com';
+  },
+  get metaScopes() {
+    return (
+      (process.env.META_SCOPES ?? '').trim() ||
+      'pages_show_list,pages_read_engagement,pages_manage_posts,business_management,instagram_basic,instagram_content_publish'
+    );
+  },
+  /** Endereço público do Clyps (ex.: https://clyps.wallie.site). Sem ele, usa o endereço da requisição. */
+  get publicUrl() {
+    return (process.env.PUBLIC_URL ?? '').trim().replace(/\/+$/, '');
+  },
+
   maxDurationSeconds: num('MAX_DURATION_SECONDS', 4 * 3600),
   maxUploadBytes: num('MAX_UPLOAD_BYTES', 4 * 1024 ** 3),
   pollIntervalMs: num('POLL_INTERVAL_MS', 3000),
