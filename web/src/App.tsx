@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { api, type User } from './lib/api';
 import type { Features } from './lib/types';
+import AccountPage from './pages/Account';
 import ClipEditor from './pages/ClipEditor';
 import History from './pages/History';
 import JobDetail from './pages/JobDetail';
@@ -47,6 +48,7 @@ export default function App() {
             Novo corte
           </NavLink>
           <NavLink to="/historico">Histórico</NavLink>
+          <NavLink to="/conta">Conta</NavLink>
         </nav>
         <div className="account">
           <span className="muted mono">{user.email}</span>
@@ -74,6 +76,7 @@ export default function App() {
           <Route path="/historico" element={<History />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/clips/:id/editar" element={<ClipEditor />} />
+          <Route path="/conta" element={<AccountPage user={user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

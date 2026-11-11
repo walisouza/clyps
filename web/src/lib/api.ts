@@ -1,6 +1,6 @@
 import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, VideoPreview } from './types';
 
-export type User = { id: string; email: string; credits: number };
+export type User = { id: string; email: string; credits: number; isAdmin: boolean };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -22,6 +22,11 @@ export const api = {
   login: (email: string, password: string) => post<{ user: User }>('/login', { email, password }),
   signup: (email: string, password: string) => post<{ user: User }>('/signup', { email, password }),
   logout: () => post<{ ok: true }>('/logout', {}),
+  changePassword: (current: string, next: string) => post<{ ok: true }>('/account/password', { current, next }),
+  listUsers: () => request<{ users: { id: string; email: string; createdAt: string; isAdmin: boolean }[] }>('/users'),
+  createUser: (email: string, password: string) => post<{ id: string }>('/users', { email, password }),
+  resetUserPassword: (id: string, password: string) => post<{ ok: true }>(`/users/${id}/password`, { password }),
+  deleteUser: (id: string) => request<{ ok: true }>(`/users/${id}`, { method: 'DELETE' }),
 
   listJobs: () => request<{ jobs: Job[] }>('/jobs'),
   getJob: (id: string) => request<{ job: Job; clips: Clip[] }>(`/jobs/${id}`),

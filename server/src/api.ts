@@ -6,8 +6,8 @@ import net from 'node:net';
 import path from 'node:path';
 import { pipeline as pipe } from 'node:stream/promises';
 import {
-  SESSION_COOKIE, SESSION_MAX_AGE_MS, createSession, createUser, destroySession, findUserForLogin, userCount,
-  userFromToken, type User,
+  MIN_PASSWORD, SESSION_COOKIE, SESSION_MAX_AGE_MS, checkPassword, createSession, createUser, destroySession,
+  findUserForLogin, listUsers, setPassword, userCount, userFromToken, type User,
 } from './auth.js';
 import { config } from './config.js';
 import { MAX_COOKIES_BYTES, cookiesPath, cookiesStatus, looksLikeNetscapeCookies, removeCookies, saveCookies } from './cookies.js';
@@ -191,6 +191,66 @@ export function createApp() {
   api.post('/logout', (req, res) => {
     destroySession(readCookie(req, SESSION_COOKIE));
     res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.json({ ok: true });
+  });
+
+  // ── Conta ──
+  api.post('/account/password', requireAuth, rateLimit, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const current = String(req.body?.current ?? '');
+    const next = String(req.body?.next ?? '');
+    if (!checkPassword(user.id, current)) return void res.status(400).json({ error: 'A senha atual está incorreta.' });
+    if (next.length < MIN_PASSWORD || next.length > 200) {
+      return void res.status(400).json({ error: `A nova senha precisa ter pelo menos ${MIN_PASSWORD} caracteres.` });
+    }
+    setPassword(user.id, next, readCookie(req, SESSION_COOKIE));
+    res.json({ ok: true });
+  });
+
+  // ── Contas (só o administrador) ──
+  const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+    if (!(req as AuthedRequest).user?.isAdmin) return void res.status(403).json({ error: 'Só o administrador pode fazer isso.' });
+    next();
+  };
+
+  api.get('/users', requireAuth, requireAdmin, (_req, res) => {
+    res.json({ users: listUsers().map((u) => ({ id: u.id, email: u.email, createdAt: u.created_at, isAdmin: Boolean(u.is_admin) })) });
+  });
+
+  api.post('/users', requireAuth, requireAdmin, (req, res) => {
+    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    const password = String(req.body?.password ?? '');
+    if (!EMAIL.test(email) || email.length > 200) return void res.status(400).json({ error: 'E-mail inválido.' });
+    if (password.length < MIN_PASSWORD || password.length > 200) {
+      return void res.status(400).json({ error: `A senha precisa ter pelo menos ${MIN_PASSWORD} caracteres.` });
+    }
+    if (db().prepare('select 1 from users where email = ?').get(email)) {
+      return void res.status(409).json({ error: 'Já existe uma conta com esse e-mail.' });
+    }
+    const u = createUser(email, password);
+    res.status(201).json({ id: u.id });
+  });
+
+  api.post('/users/:id/password', requireAuth, requireAdmin, (req, res) => {
+    const password = String(req.body?.password ?? '');
+    if (password.length < MIN_PASSWORD || password.length > 200) {
+      return void res.status(400).json({ error: `A senha precisa ter pelo menos ${MIN_PASSWORD} caracteres.` });
+    }
+    if (!db().prepare('select 1 from users where id = ?').get(req.params.id)) return void res.status(404).json({ error: 'Conta não encontrada.' });
+    setPassword(req.params.id, password);
+    res.json({ ok: true });
+  });
+
+  api.delete('/users/:id', requireAuth, requireAdmin, async (req, res) => {
+    const me = (req as AuthedRequest).user;
+    if (req.params.id === me.id) return void res.status(400).json({ error: 'Você não pode apagar a sua própria conta.' });
+    if (!db().prepare('select 1 from users where id = ?').get(req.params.id)) return void res.status(404).json({ error: 'Conta não encontrada.' });
+    // Apaga os arquivos da conta (clipes, envios, cookies); o banco apaga cortes e sessões em cascata.
+    const jobs = db().prepare('select id from jobs where user_id = ?').all(req.params.id) as { id: string }[];
+    for (const j of jobs) await rm(clipsDir(j.id), { recursive: true, force: true });
+    await rm(uploadsDir(req.params.id), { recursive: true, force: true });
+    await removeCookies(req.params.id);
+    db().prepare('delete from users where id = ?').run(req.params.id);
     res.json({ ok: true });
   });
 

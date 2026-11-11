@@ -129,6 +129,11 @@ export function db(): Database.Database {
     ensureColumn(conn, 'clips', 'post_caption', 'text');
     ensureColumn(conn, 'clips', 'energy', 'integer');
     ensureColumn(conn, 'jobs', 'notice', 'text');
+    // A primeira conta criada é a do administrador (gerencia as outras contas).
+    ensureColumn(conn, 'users', 'is_admin', 'integer not null default 0');
+    conn.exec(`update users set is_admin = 1
+               where id = (select id from users order by created_at, rowid limit 1)
+                 and not exists (select 1 from users where is_admin = 1)`);
     // Edição de clipes: versão limpa (sem legenda, com folga), palavras e legenda configurável.
     ensureColumn(conn, 'clips', 'clean_path', 'text');
     ensureColumn(conn, 'clips', 'clean_start_ms', 'integer');

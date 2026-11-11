@@ -31,7 +31,7 @@ docker compose up -d --build
 docker compose logs -f app            # deve mostrar "Clyps no ar"
 ```
 
-Abra `http://IP-DA-VPS`. A primeira conta criada é a de administrador; depois dela o cadastro fecha sozinho (para abrir de novo, `ALLOW_SIGNUP=1`).
+Abra `http://IP-DA-VPS`. A primeira conta criada é a de administrador; depois dela o cadastro pela tela de login fecha sozinho. Outras contas são criadas pelo administrador na página **Conta** (que também troca a senha). Se alguém esquecer a senha: `docker compose exec app npx tsx src/reset-password.ts email@da.conta`.
 
 O `.env.example` já vem com `MOCK_AI=1`: tudo funciona, mas a transcrição e a escolha dos trechos são simuladas. Para usar de verdade, apague essa linha do `.env` e rode `docker compose up -d --force-recreate app`.
 
