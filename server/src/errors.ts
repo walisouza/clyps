@@ -13,7 +13,8 @@ export const LLM_GENERIC: Service = { name: 'serviço de IA', article: 'o' };
 function serviceMessage(body: string): string {
   let msg = body;
   try {
-    const j = JSON.parse(body);
+    let j = JSON.parse(body);
+    if (Array.isArray(j)) j = j[0]; // o Google devolve o erro dentro de uma lista
     // O Gateway da AssemblyAI põe o motivo real em metadata.errors; "message" é genérico.
     msg = String(j?.metadata?.errors?.[0] ?? j?.error?.message ?? j?.error_message ?? j?.error ?? j?.message ?? j?.detail ?? body);
   } catch {
@@ -27,7 +28,9 @@ export function apiError(service: Service, status: number, body: string, envVar?
   const subject = `${service.article === 'a' ? 'A' : 'O'} ${service.name}`;
   const text = body.toLowerCase();
   const detail = serviceMessage(body);
-  if (status === 401) {
+  // Alguns serviços (ex.: Google) respondem 400 para chave inválida.
+  const badKey = status === 400 && /api[ _-]?key/i.test(body) && /(valid|invalid|not found|expired)/i.test(body);
+  if (status === 401 || badKey) {
     return new UserError(`${subject} recusou a chave${envVar ? ` (${envVar} no .env)` : ''}. Confira se ela está correta e ativa.${detail}`);
   }
   if (status === 403) {

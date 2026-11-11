@@ -168,6 +168,9 @@ export async function processJob(job: JobRow): Promise<void> {
     let selections;
     if (config.mock) {
       selections = mockSelect(words, opts, info.duration, norm);
+    } else if (!config.llmViaAssemblyAI && config.llmConfigured && isPlaceholder(config.llmApiKey)) {
+      selections = heuristicSelect(words, opts, info.duration, norm);
+      addNotice('A LLM_API_KEY no .env ainda é o texto de exemplo; troque pela sua chave. Os trechos foram escolhidos pela energia da fala e pelas frases.');
     } else if (!config.llmConfigured) {
       selections = heuristicSelect(words, opts, info.duration, norm);
       addNotice(
