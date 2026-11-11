@@ -82,6 +82,12 @@ export default function JobDetail() {
         </section>
       )}
 
+      {job.notice && (
+        <p className="notice-box small" role="status">
+          {job.notice}
+        </p>
+      )}
+
       {job.status === 'failed' && (
         <section className="card">
           <p className="error">{job.error || 'O processamento falhou.'}</p>

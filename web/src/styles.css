@@ -194,3 +194,6 @@ details p { margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Aviso não fatal no corte */
+.notice-box { background: #fff3c4; border: 1.5px solid var(--ink); border-radius: 10px; padding: 10px 14px; }

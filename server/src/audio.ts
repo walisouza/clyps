@@ -26,6 +26,7 @@ function rnnoise(mix: number): string[] {
  */
 export function clipAudioFilter(mode: AudioEnhance): string | undefined {
   if (mode === 'off') return undefined;
+  // 'auphonic' só chega aqui quando o Auphonic não pôde ser usado: cai no tratamento forte local.
   if (mode === 'light') {
     return [
       'highpass=f=80',
@@ -52,7 +53,7 @@ export function clipAudioFilter(mode: AudioEnhance): string | undefined {
 
 /** Limpeza do áudio enviado para a transcrição (ajuda a IA a entender fala com eco/ruído). */
 export function sttAudioFilter(mode: AudioEnhance): string | undefined {
-  if (mode === 'strong') return ['highpass=f=100', ...rnnoise(1), 'afftdn=nr=14:nf=-35:tn=1'].join(',');
+  if (mode === 'strong' || mode === 'auphonic') return ['highpass=f=100', ...rnnoise(1), 'afftdn=nr=14:nf=-35:tn=1'].join(',');
   if (mode === 'light') return 'highpass=f=80';
   return undefined;
 }

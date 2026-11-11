@@ -113,6 +113,7 @@ function jobJson(j: JobRow) {
     duration_seconds: j.duration_seconds,
     options: JSON.parse(j.options || '{}'),
     error: j.error,
+    notice: j.notice ?? null,
     created_at: j.created_at,
   };
 }
@@ -153,7 +154,12 @@ export function createApp() {
   // ── Conta ──
   api.get('/me', (req, res) => {
     const user = userFromToken(readCookie(req, SESSION_COOKIE));
-    res.json({ user, signupOpen: signupOpen(), mock: config.mock });
+    res.json({
+      user,
+      signupOpen: signupOpen(),
+      mock: config.mock,
+      features: { auphonic: Boolean(config.auphonicApiKey), transcription: config.sttProvider },
+    });
   });
 
   api.post('/signup', rateLimit, (req, res) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { api, type User } from './lib/api';
+import type { Features } from './lib/types';
 import History from './pages/History';
 import JobDetail from './pages/JobDetail';
 import Login from './pages/Login';
@@ -14,7 +15,7 @@ export function Logo() {
   );
 }
 
-type Session = { user: User | null; signupOpen: boolean; mock?: boolean };
+type Session = { user: User | null; signupOpen: boolean; mock?: boolean; features?: Features };
 
 export default function App() {
   const [session, setSession] = useState<Session | undefined>(undefined);
@@ -62,7 +63,7 @@ export default function App() {
       )}
       <main className="page">
         <Routes>
-          <Route path="/" element={<NewClip />} />
+          <Route path="/" element={<NewClip features={session.features} />} />
           <Route path="/historico" element={<History />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -17,6 +17,8 @@ export async function renderSelection(
   opts: JobOptions,
   outDir: string,
   index: number,
+  /** Áudio do trecho já tratado (Auphonic). Sem ele, aplica o filtro local do modo escolhido. */
+  audioFile?: string,
 ): Promise<RenderedClip> {
   const size = outputSize(opts.aspect, info);
   const clipWords = words
@@ -50,7 +52,8 @@ export async function renderSelection(
     layout: opts.aspect === 'original' ? 'fill' : opts.layout,
     assPath,
     hasAudio: info.hasAudio,
-    audioFilter: clipAudioFilter(opts.audioEnhance),
+    audioFilter: audioFile ? undefined : clipAudioFilter(opts.audioEnhance),
+    audioFile,
   });
 
   return { file, transcript: clipWords.map((w) => w.word.trim()).join(' '), selection };

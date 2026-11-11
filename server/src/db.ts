@@ -82,6 +82,8 @@ export type JobRow = {
   attempts: number;
   created_at: string;
   completed_at: string | null;
+  /** Aviso não fatal sobre o processamento (ex.: Auphonic falhou e usamos o filtro local). */
+  notice: string | null;
 };
 
 export type ClipRow = {
@@ -118,12 +120,13 @@ export function db(): Database.Database {
     conn.exec(SCHEMA);
     ensureColumn(conn, 'clips', 'post_caption', 'text');
     ensureColumn(conn, 'clips', 'energy', 'integer');
+    ensureColumn(conn, 'jobs', 'notice', 'text');
   }
   return conn;
 }
 
 const JOB_COLUMNS = new Set([
-  'status', 'stage', 'progress', 'title', 'duration_seconds', 'error', 'credit_cost', 'completed_at', 'upload_path',
+  'status', 'stage', 'progress', 'title', 'duration_seconds', 'error', 'credit_cost', 'completed_at', 'upload_path', 'notice',
 ]);
 
 export function updateJob(id: string, patch: Partial<JobRow>): void {
@@ -150,7 +153,7 @@ export function claimNextJob(): JobRow | null {
       | undefined;
     if (!job) return null;
     db().prepare(
-      `update jobs set status = 'processing', stage = 'starting', progress = 0, attempts = attempts + 1, error = null
+      `update jobs set status = 'processing', stage = 'starting', progress = 0, attempts = attempts + 1, error = null, notice = null
        where id = ?`,
     ).run(job.id);
     return { ...job, status: 'processing', attempts: job.attempts + 1 };

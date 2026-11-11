@@ -27,7 +27,26 @@ export const config = {
     return process.env.ALLOW_SIGNUP === '1';
   },
 
-  // Transcrição (API compatível com OpenAI /audio/transcriptions)
+  // AssemblyAI: transcrição com tempo por palavra e, pela mesma chave, o LLM Gateway.
+  get assemblyaiApiKey() {
+    return process.env.ASSEMBLYAI_API_KEY || '';
+  },
+  assemblyaiBaseUrl: process.env.ASSEMBLYAI_BASE_URL || 'https://api.assemblyai.com',
+
+  /** Qual serviço transcreve: AssemblyAI se houver chave; senão, API compatível com OpenAI. */
+  get sttProvider(): 'assemblyai' | 'openai' | null {
+    if (this.assemblyaiApiKey) return 'assemblyai';
+    if (process.env.STT_API_KEY) return 'openai';
+    return null;
+  },
+
+  // Auphonic: tratamento profissional de voz (ruído e eco), por clipe.
+  get auphonicApiKey() {
+    return process.env.AUPHONIC_API_KEY || '';
+  },
+  auphonicBaseUrl: process.env.AUPHONIC_BASE_URL || 'https://auphonic.com',
+
+  // Transcrição alternativa (API compatível com OpenAI /audio/transcriptions)
   get sttBaseUrl() {
     return process.env.STT_BASE_URL || 'https://api.openai.com/v1';
   },
@@ -38,15 +57,21 @@ export const config = {
     return process.env.STT_MODEL || 'whisper-1';
   },
 
-  // LLM que escolhe os trechos (API compatível com OpenAI /chat/completions)
+  // LLM que escolhe os trechos e escreve as legendas.
+  // Sem LLM_API_KEY, usa o LLM Gateway da AssemblyAI com a mesma chave da transcrição.
+  /** true quando o LLM é o Gateway da AssemblyAI (autenticação sem "Bearer", sem response_format). */
+  get llmViaAssemblyAI() {
+    return !process.env.LLM_API_KEY && Boolean(this.assemblyaiApiKey);
+  },
   get llmBaseUrl() {
-    return process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
+    if (process.env.LLM_BASE_URL) return process.env.LLM_BASE_URL;
+    return this.llmViaAssemblyAI ? 'https://llm-gateway.assemblyai.com/v1' : 'https://api.openai.com/v1';
   },
   get llmApiKey() {
-    return required('LLM_API_KEY');
+    return process.env.LLM_API_KEY || this.assemblyaiApiKey || required('LLM_API_KEY');
   },
   get llmModel() {
-    return required('LLM_MODEL');
+    return process.env.LLM_MODEL || (this.llmViaAssemblyAI ? 'claude-sonnet-4-6' : required('LLM_MODEL'));
   },
 
   maxDurationSeconds: num('MAX_DURATION_SECONDS', 4 * 3600),

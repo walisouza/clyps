@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import CookiesPanel from '../components/CookiesPanel';
 import LinkPreview from '../components/LinkPreview';
 import { api } from '../lib/api';
-import type { JobOptions } from '../lib/types';
+import type { Features, JobOptions } from '../lib/types';
 
 const DEFAULTS: JobOptions = {
   language: 'pt',
@@ -49,7 +49,7 @@ function Segmented<T extends string>(props: {
   );
 }
 
-export default function NewClip() {
+export default function NewClip({ features }: { features?: Features }) {
   const navigate = useNavigate();
   const [source, setSource] = useState<'url' | 'upload'>('url');
   const [url, setUrl] = useState('');
@@ -244,12 +244,21 @@ export default function NewClip() {
             { value: 'off', label: 'Original', hint: 'sem alteração' },
             { value: 'light', label: 'Leve', hint: 'nivela volume, tira chiado' },
             { value: 'strong', label: 'Forte', hint: 'celular, eco e ruído' },
+            ...(features?.auphonic
+              ? [{ value: 'auphonic' as const, label: 'Profissional', hint: 'Auphonic, eco pesado' }]
+              : []),
           ]}
         />
         {opts.audioEnhance === 'strong' && (
           <p className="muted small">
             Reduz ruído de fundo e boa parte do eco, realça a voz e nivela o volume. Em salas com eco muito forte a
-            melhora é parcial.
+            melhora é parcial; nesse caso use Profissional.
+          </p>
+        )}
+        {opts.audioEnhance === 'auphonic' && (
+          <p className="muted small">
+            Cada clipe passa pelo Auphonic, que remove ruído e reverberação com IA. Leva alguns minutos a mais e consome
+            os créditos de horas da sua conta Auphonic (só a duração dos clipes, não do vídeo inteiro).
           </p>
         )}
       </section>

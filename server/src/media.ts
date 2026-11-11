@@ -67,6 +67,19 @@ export async function ytDownload(url: string, out: string, cookiesPath?: string)
   );
 }
 
+/** Áudio inteiro em um MP3 mono leve (para a AssemblyAI, que aceita arquivos longos). */
+export async function extractAudio(file: string, out: string): Promise<void> {
+  await run('ffmpeg', ['-y', '-v', 'error', '-i', file, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '48k', out]);
+}
+
+/** Áudio de um trecho em FLAC 48 kHz, sem perdas (entrada do Auphonic). */
+export async function extractClipAudio(file: string, out: string, startSec: number, durationSec: number): Promise<void> {
+  await run('ffmpeg', [
+    '-y', '-v', 'error', '-ss', startSec.toFixed(3), '-i', file, '-t', durationSec.toFixed(3),
+    '-vn', '-ar', '48000', '-c:a', 'flac', out,
+  ]);
+}
+
 export const SEGMENT_SECONDS = 1200;
 
 /** Extrai o áudio em MP3 mono leve, em partes de 20 min (limite de upload das APIs de transcrição). */
@@ -104,6 +117,8 @@ export type RenderInput = {
   hasAudio: boolean;
   /** Cadeia de filtros de áudio (tratamento de voz). */
   audioFilter?: string;
+  /** Áudio já tratado (Auphonic), com o mesmo início e duração do trecho. Substitui o áudio original. */
+  audioFile?: string;
 };
 
 /** Corta o trecho, reenquadra para o formato pedido e queima a legenda. */
@@ -121,15 +136,21 @@ export async function renderClip(r: RenderInput): Promise<void> {
     chain.push(`[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1[base]`);
   }
   chain.push(r.assPath ? `[base]ass='${escapeFilterPath(r.assPath)}'[v]` : `[base]null[v]`);
-  if (r.hasAudio && r.audioFilter) chain.push(`[0:a:0]${r.audioFilter}[a]`);
+  if (r.hasAudio && !r.audioFile && r.audioFilter) chain.push(`[0:a:0]${r.audioFilter}[a]`);
 
   const args = [
     '-y', '-v', 'error',
-    '-ss', r.startSec.toFixed(3), '-i', r.src, '-t', r.durationSec.toFixed(3),
+    '-ss', r.startSec.toFixed(3), '-i', r.src,
+    // O áudio tratado entra como segunda entrada, antes do -t (que vale para a saída).
+    ...(r.hasAudio && r.audioFile ? ['-i', r.audioFile] : []),
+    '-t', r.durationSec.toFixed(3),
     '-filter_complex', chain.join(';'),
     '-map', '[v]',
   ];
-  if (r.hasAudio) args.push('-map', r.audioFilter ? '[a]' : '0:a:0', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000');
+  if (r.hasAudio) {
+    const audioMap = r.audioFile ? '1:a:0' : r.audioFilter ? '[a]' : '0:a:0';
+    args.push('-map', audioMap, '-c:a', 'aac', '-b:a', '160k', '-ar', '48000');
+  }
   args.push(
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',

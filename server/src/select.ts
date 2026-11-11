@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { LLM_GATEWAY, LLM_GENERIC, apiError } from './errors.js';
 import { avgEnergy, segmentEnergyScore } from './energy.js';
 import { LENGTH_RANGES, type JobOptions, type Selection, type Word } from './types.js';
 
@@ -37,19 +38,27 @@ function toLines(words: Word[]): Line[] {
  * Só marca o que foge do normal do próprio vídeo, para não gastar contexto à toa.
  */
 export function annotateLines(lines: Line[], norm: number[]): string {
+  const quantile = (values: number[], q: number) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? 0;
+  };
   const rates = lines.map((l) => l.words / Math.max(0.5, l.end - l.start));
-  const sorted = [...rates].sort((a, b) => a - b);
-  const fastThreshold = sorted[Math.floor(sorted.length * 0.8)] ?? Infinity;
+  const fastThreshold = lines.length >= 10 ? quantile(rates, 0.8) : Infinity;
+
+  // Energia relativa ao próprio vídeo: as 15% linhas mais intensas são "alta" (com piso absoluto,
+  // para um vídeo todo calmo não ganhar marcas) e as 15% mais fracas são "baixa".
+  const energies = norm.length ? lines.map((l) => avgEnergy(norm, l.start, l.end)) : [];
+  const highThreshold = energies.length ? Math.max(0.5, quantile(energies, 0.85)) : Infinity;
+  const lowThreshold = energies.length ? Math.min(0.3, quantile(energies, 0.15)) : -Infinity;
 
   return lines
     .map((l, i) => {
       const marks: string[] = [];
-      if (norm.length) {
-        const e = avgEnergy(norm, l.start, l.end);
-        if (e >= 0.7) marks.push('energia alta');
-        else if (e <= 0.25) marks.push('energia baixa');
+      if (energies.length) {
+        if (energies[i] >= highThreshold) marks.push('energia alta');
+        else if (energies[i] <= lowThreshold) marks.push('energia baixa');
       }
-      if (lines.length >= 10 && rates[i] >= fastThreshold) marks.push('ritmo rápido');
+      if (rates[i] >= fastThreshold) marks.push('ritmo rápido');
       const tag = marks.length ? ` · ${marks.join(' · ')}` : '';
       return `[${l.start.toFixed(1)}${tag}] ${l.text}`;
     })
@@ -87,19 +96,26 @@ async function askLlm(transcript: string, opts: JobOptions, title: string, wante
     transcript,
   ].filter(Boolean).join('\n');
 
+  const gateway = config.llmViaAssemblyAI;
   const res = await fetch(`${config.llmBaseUrl}/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.llmApiKey}` },
+    headers: {
+      'Content-Type': 'application/json',
+      // O Gateway da AssemblyAI recebe a chave pura; APIs no padrão OpenAI usam "Bearer".
+      Authorization: gateway ? config.llmApiKey : `Bearer ${config.llmApiKey}`,
+    },
     body: JSON.stringify({
       model: config.llmModel,
-      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
+      ...(gateway ? { max_tokens: 4096 } : { response_format: { type: 'json_object' } }),
     }),
   });
-  if (!res.ok) throw new Error(`Falha no LLM: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) {
+    throw apiError(gateway ? LLM_GATEWAY : LLM_GENERIC, res.status, await res.text(), gateway ? 'ASSEMBLYAI_API_KEY' : 'LLM_API_KEY');
+  }
   const json: any = await res.json();
   const content: string = json.choices?.[0]?.message?.content ?? '';
   const match = content.match(/\{[\s\S]*\}/);

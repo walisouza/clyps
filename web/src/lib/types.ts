@@ -9,7 +9,7 @@ export type JobOptions = {
   captionStyle: 'karaoke' | 'bold' | 'minimal' | 'none';
   captionPosition: 'bottom' | 'center' | 'top';
   highlightColor: string;
-  audioEnhance: 'off' | 'light' | 'strong';
+  audioEnhance: 'off' | 'light' | 'strong' | 'auphonic';
   context?: string;
 };
 
@@ -24,8 +24,11 @@ export type Job = {
   duration_seconds: number | null;
   options: Partial<JobOptions>;
   error: string | null;
+  notice: string | null;
   created_at: string;
 };
+
+export type Features = { auphonic: boolean; transcription: 'assemblyai' | 'openai' | null };
 
 export type Clip = {
   id: string;
@@ -64,6 +67,7 @@ export const STAGE_LABEL: Record<string, string> = {
   analyzing: 'Medindo a energia do áudio',
   transcribing: 'Transcrevendo a fala',
   selecting: 'Escolhendo os melhores trechos',
+  enhancing: 'Tratando a voz no Auphonic',
   rendering: 'Renderizando os clipes',
   done: 'Concluído',
 };
