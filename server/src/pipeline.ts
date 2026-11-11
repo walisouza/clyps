@@ -17,6 +17,17 @@ import { mockSelect, selectClips } from './select.js';
 import { ensureSpeachesReady, mockTranscribe, transcribe, transcribeAssemblyAI } from './transcribe.js';
 import { normalizeOptions, type Selection } from './types.js';
 
+const STAGE_NAMES: Record<string, string> = {
+  starting: 'início',
+  downloading: 'download do vídeo',
+  analyzing: 'análise de energia',
+  preparing_stt: 'preparação da transcrição',
+  transcribing: 'transcrição',
+  selecting: 'escolha dos trechos',
+  enhancing: 'tratamento de voz (Auphonic)',
+  rendering: 'renderização dos clipes',
+};
+
 export const clipsDir = (jobId: string) => path.join(config.dataDir, 'clips', jobId);
 const nowIso = () => new Date().toISOString();
 
@@ -179,12 +190,17 @@ export async function processJob(job: JobRow): Promise<void> {
     } else {
       try {
         selections = await selectClips(words, opts, source.title, info.duration, norm);
+        if (!selections.length) {
+          selections = heuristicSelect(words, opts, info.duration, norm);
+          if (selections.length) addNotice('A IA de texto não devolveu trechos válidos; usamos a seleção pela energia da fala e pelas frases.');
+        }
       } catch (err) {
-        // Chave recusada, sem crédito ou sem acesso: não perde o corte, cai na seleção sem IA de texto.
-        if (!(err instanceof UserError)) throw err;
-        console.warn(`[job ${job.id}] LLM indisponível, usando seleção sem IA de texto:`, err.message);
+        // Qualquer falha da IA de texto (chave, crédito, sobrecarga, rede, resposta estranha)
+        // não perde o corte: cai na seleção sem IA de texto e explica o motivo.
+        const reason = err instanceof UserError ? err.message : `erro inesperado: ${(err as Error)?.message ?? err}`;
+        console.warn(`[job ${job.id}] IA de texto indisponível, usando seleção sem IA de texto:`, err);
         selections = heuristicSelect(words, opts, info.duration, norm);
-        addNotice(`A IA de texto falhou (${err.message}) Os trechos foram escolhidos pela energia da fala e pelas frases.`);
+        addNotice(`A IA de texto falhou (${reason.slice(0, 300)}) Os trechos foram escolhidos pela energia da fala e pelas frases.`);
       }
     }
     if (!selections.length) throw new UserError('Não encontramos trechos bons para corte neste vídeo.');
@@ -229,7 +245,15 @@ export async function processJob(job: JobRow): Promise<void> {
 
     updateJob(job.id, { status: 'completed', stage: 'done', progress: 100, completed_at: nowIso() });
   } catch (err) {
-    const message = err instanceof UserError ? err.message : 'Erro interno no processamento. Tente novamente.';
+    let message: string;
+    if (err instanceof UserError) {
+      message = err.message;
+    } else {
+      // Mostra a etapa e um resumo técnico, para dar para entender o problema sem abrir o log.
+      const stage = (db().prepare('select stage from jobs where id = ?').get(job.id) as { stage?: string } | undefined)?.stage;
+      const summary = String((err as Error)?.message ?? err).split('\n').find((l) => l.trim()) ?? '';
+      message = `Erro interno${stage ? ` na etapa "${STAGE_NAMES[stage] ?? stage}"` : ''}: ${summary.slice(0, 220)}. Tente novamente; se repetir, veja docker compose logs app.`;
+    }
     console.error(`[job ${job.id}]`, err);
     if (charged > 0) adjustCredits(job.user_id, job.id, charged, 'Clips: estorno por falha');
     updateJob(job.id, { status: 'failed', error: message, completed_at: nowIso() });
