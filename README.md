@@ -37,7 +37,8 @@ O `.env.example` já vem com `MOCK_AI=1`: tudo funciona, mas a transcrição e a
 
 - **Domínio e HTTPS:** aponte o domínio para o IP da VPS e coloque-o em `SITE_ADDRESS`. O certificado é emitido sozinho. Use HTTPS antes de usar para valer: sem ele, a senha trafega sem criptografia.
 - **Portas ocupadas:** se a VPS já tem outro site nas portas 80/443, mude `HTTP_PORT` e `HTTPS_PORT`.
-- **Atualizar:** `git pull && docker compose up -d --build`.
+- **Atualizar:** `./scripts/update.sh` (busca a versão nova no GitHub e reconstrói só se mudou). Para atualizar sozinho a cada 5 minutos, adicione ao `crontab -e`:
+  `*/5 * * * * /root/clyps/scripts/update.sh >> /root/clyps-update.log 2>&1`
 - **Backup:** tudo fica no volume `clyps_data` (banco e clipes).
 - **Recursos:** 2 vCPU e 4 GB de RAM ou mais, e espaço em disco para os vídeos de origem durante o processamento.
 
