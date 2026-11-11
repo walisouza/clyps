@@ -55,6 +55,9 @@ export default function Login({ signupOpen, onAuth }: { signupOpen: boolean; onA
             {mode === 'in' ? 'Criar uma conta' : 'Já tenho conta'}
           </button>
         )}
+        <p className="muted small legal-links">
+          <a href="/privacidade">Privacidade</a> · <a href="/termos">Termos</a> · <a href="/exclusao-de-dados">Exclusão de dados</a>
+        </p>
       </form>
     </main>
   );

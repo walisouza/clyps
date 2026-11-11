@@ -88,6 +88,8 @@ Cada clipe tem o botão **Publicar**: escolhe as contas (Reels do Instagram e da
 3. Na VPS: `./scripts/meta.sh` (pede o App ID e o App Secret, confere com a Meta e reinicia o app).
 4. No Clyps, em **Conta**, clique em **Conectar com o Facebook** e libere as Páginas e os Instagrams.
 
+Páginas públicas para cadastrar no app (Configurações do app → Básico): `/privacidade`, `/termos` e `/exclusao-de-dados`. O nome e o e-mail de contato que aparecem nelas vêm de `LEGAL_NAME` e `CONTACT_EMAIL` no `.env`.
+
 Com o app em modo de desenvolvimento, funciona para as contas de quem tem função no app (administrador, desenvolvedor ou testador). O Instagram precisa ser profissional (Criador ou Empresa) e ligado a uma Página. A Meta baixa o vídeo por um link temporário assinado do próprio Clyps, então o site precisa estar em HTTPS. No Facebook, clipes 9:16 de 3 a 90 s saem como Reels; os outros saem como vídeo da Página.
 
 ## Limitações conhecidas

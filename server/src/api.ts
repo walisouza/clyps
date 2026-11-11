@@ -17,6 +17,7 @@ import { clipsDir } from './pipeline.js';
 import { editorData, isEditable, saveEdit } from './editor.js';
 import { UserError } from './errors.js';
 import { normalizeOptions } from './types.js';
+import { deletionPage, privacyPage, termsPage } from './legal.js';
 import {
   accountNames, createPosts, disconnect, finishLogin, listAccounts, loginUrl, postJson, runDuePosts, verifyPublicClip, type PostRow,
 } from './meta.js';
@@ -570,7 +571,13 @@ export function createApp() {
 
   // ── App web ──
   // A Meta só baixa vídeos de sites cujo robots.txt libera o robô dela.
-  app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nAllow: /api/public/\nDisallow: /\n'));
+  app.get('/robots.txt', (_req, res) => res.type('text/plain').send('User-agent: *\nAllow: /api/public/\nDisallow: /api/\n'));
+
+  // Páginas públicas (sem login): exigidas pela Meta para o app.
+  const legal = (html: () => string) => (_req: Request, res: Response) => res.type('html').send(html());
+  app.get(['/privacidade', '/privacy'], legal(privacyPage));
+  app.get(['/termos', '/terms'], legal(termsPage));
+  app.get(['/exclusao-de-dados', '/data-deletion'], legal(deletionPage));
 
   if (existsSync(path.join(config.webDir, 'index.html'))) {
     app.use(express.static(config.webDir, { index: false, maxAge: '1h' }));

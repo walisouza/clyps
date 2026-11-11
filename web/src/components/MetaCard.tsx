@@ -85,6 +85,10 @@ export default function MetaCard() {
           <p className="muted small">
             Endereço de retorno para cadastrar no app da Meta: <code>{status.callbackUrl}</code>
           </p>
+          <p className="muted small">
+            Páginas públicas para o app: <a href="/privacidade">Privacidade</a> · <a href="/termos">Termos</a> ·{' '}
+            <a href="/exclusao-de-dados">Exclusão de dados</a>
+          </p>
         </>
       )}
     </section>
