@@ -5,6 +5,8 @@ export type Layout = 'fill' | 'blur';
 export type CaptionStyle = 'karaoke' | 'bold' | 'minimal' | 'none';
 export type CaptionPosition = 'bottom' | 'center' | 'top';
 export type ClipLength = 'short' | 'medium' | 'long';
+export type CaptionSize = 'small' | 'medium' | 'large';
+export const CAPTION_SCALE: Record<CaptionSize, number> = { small: 0.8, medium: 1, large: 1.3 };
 export type AudioEnhance = 'off' | 'light' | 'strong' | 'auphonic';
 
 export type JobOptions = {
@@ -16,6 +18,7 @@ export type JobOptions = {
   captionStyle: CaptionStyle;
   captionPosition: CaptionPosition;
   highlightColor: string;
+  captionSize: CaptionSize;
   audioEnhance: AudioEnhance;
   context?: string;
 };
@@ -52,7 +55,43 @@ export function normalizeOptions(raw: unknown): JobOptions {
     captionStyle: pick(o.captionStyle, ['karaoke', 'bold', 'minimal', 'none'] as const, 'karaoke'),
     captionPosition: pick(o.captionPosition, ['bottom', 'center', 'top'] as const, 'bottom'),
     highlightColor: /^#[0-9a-fA-F]{6}$/.test(String(o.highlightColor)) ? String(o.highlightColor) : '#FFE14D',
+    captionSize: pick(o.captionSize, ['small', 'medium', 'large'] as const, 'medium'),
     audioEnhance: pick(o.audioEnhance, ['off', 'light', 'strong', 'auphonic'] as const, 'light'),
     context: typeof o.context === 'string' && o.context.trim() ? o.context.trim().slice(0, 1000) : undefined,
+  };
+}
+
+/** Legenda de um clipe já gerado (editável depois). */
+export type CaptionSettings = {
+  enabled: boolean;
+  style: Exclude<CaptionStyle, 'none'>;
+  position: CaptionPosition;
+  highlightColor: string;
+  size: CaptionSize;
+};
+
+export function normalizeCaptions(raw: unknown, fallback?: CaptionSettings): CaptionSettings {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const base: CaptionSettings = fallback ?? { enabled: true, style: 'karaoke', position: 'bottom', highlightColor: '#FFE14D', size: 'medium' };
+  const sizes = ['small', 'medium', 'large'] as const;
+  const styles = ['karaoke', 'bold', 'minimal'] as const;
+  const positions = ['bottom', 'center', 'top'] as const;
+  return {
+    enabled: typeof o.enabled === 'boolean' ? o.enabled : base.enabled,
+    style: styles.includes(o.style as any) ? (o.style as CaptionSettings['style']) : base.style,
+    position: positions.includes(o.position as any) ? (o.position as CaptionPosition) : base.position,
+    highlightColor: /^#[0-9a-fA-F]{6}$/.test(String(o.highlightColor)) ? String(o.highlightColor) : base.highlightColor,
+    size: sizes.includes(o.size as any) ? (o.size as CaptionSize) : base.size,
+  };
+}
+
+/** Configuração inicial da legenda a partir das opções do corte. */
+export function captionsFromOptions(opts: JobOptions): CaptionSettings {
+  return {
+    enabled: opts.captionStyle !== 'none',
+    style: opts.captionStyle === 'none' ? 'karaoke' : opts.captionStyle,
+    position: opts.captionPosition,
+    highlightColor: opts.highlightColor,
+    size: opts.captionSize,
   };
 }

@@ -14,6 +14,8 @@ import { MAX_COOKIES_BYTES, cookiesPath, cookiesStatus, looksLikeNetscapeCookies
 import { db, requeueJob, type ClipRow, type JobRow } from './db.js';
 import { ytInfo, type VideoInfo } from './media.js';
 import { clipsDir } from './pipeline.js';
+import { editorData, isEditable, saveEdit } from './editor.js';
+import { UserError } from './errors.js';
 import { normalizeOptions } from './types.js';
 
 type AuthedRequest = Request & { user: User };
@@ -131,6 +133,10 @@ function clipJson(c: ClipRow) {
     aspect: c.aspect,
     post_caption: c.post_caption,
     energy: c.energy,
+    version: c.version ?? 0,
+    rerendering: Boolean(c.rerendering),
+    render_error: c.render_error ?? null,
+    editable: isEditable(c),
   };
 }
 
@@ -149,7 +155,7 @@ export function createApp() {
   });
 
   const api = express.Router();
-  api.use(express.json({ limit: '100kb' }));
+  api.use(express.json({ limit: '1mb' }));
 
   // ── Conta ──
   api.get('/me', (req, res) => {
@@ -352,10 +358,48 @@ export function createApp() {
   api.get('/clips/:id/file', requireAuth, (req, res) => {
     const user = (req as AuthedRequest).user;
     const clip = db().prepare('select * from clips where id = ? and user_id = ?').get(req.params.id, user.id) as ClipRow | undefined;
-    if (!clip || !existsSync(clip.file_path)) return void res.status(404).json({ error: 'Arquivo não encontrado.' });
+    // variant=clean: versão sem legenda e com folga, usada no editor.
+    const file = req.query.variant === 'clean' ? clip?.clean_path : clip?.file_path;
+    if (!clip || !file || !existsSync(file)) return void res.status(404).json({ error: 'Arquivo não encontrado.' });
+    // A URL muda a cada edição (?v=versão), então o navegador pode guardar em cache.
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    if (req.query.download) res.download(clip.file_path, `${slug(clip.title)}.mp4`);
-    else res.sendFile(clip.file_path, { headers: { 'Content-Type': 'video/mp4' } });
+    if (req.query.download) res.download(file, `${slug(clip.title)}.mp4`);
+    else res.sendFile(file, { headers: { 'Content-Type': 'video/mp4' } });
+  });
+
+  // ── Editor de clipe ──
+  api.get('/clips/:id/editor', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const clip = db().prepare('select * from clips where id = ? and user_id = ?').get(req.params.id, user.id) as ClipRow | undefined;
+    if (!clip) return void res.status(404).json({ error: 'Clipe não encontrado.' });
+    if (!isEditable(clip)) {
+      return void res.status(409).json({
+        error: 'Este clipe foi gerado antes do editor existir. Crie o corte de novo para poder editar.',
+      });
+    }
+    res.json(editorData(clip));
+  });
+
+  api.put('/clips/:id/editor', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const clip = db().prepare('select * from clips where id = ? and user_id = ?').get(req.params.id, user.id) as ClipRow | undefined;
+    if (!clip) return void res.status(404).json({ error: 'Clipe não encontrado.' });
+    const b = req.body ?? {};
+    try {
+      saveEdit(clip, {
+        version: Number(b.version),
+        startMs: Number(b.startMs),
+        endMs: Number(b.endMs),
+        title: b.title,
+        postCaption: b.postCaption,
+        captions: b.captions,
+        texts: Array.isArray(b.texts) ? b.texts.slice(0, 5000) : undefined,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof UserError) return void res.status(400).json({ error: err.message });
+      throw err;
+    }
   });
 
   api.use((_req, res) => void res.status(404).json({ error: 'Rota não encontrada.' }));

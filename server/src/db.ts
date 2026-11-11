@@ -101,6 +101,14 @@ export type ClipRow = {
   aspect: string;
   post_caption: string | null;
   energy: number | null;
+  clean_path: string | null;
+  clean_start_ms: number | null;
+  clean_end_ms: number | null;
+  words_json: string | null;
+  captions_json: string | null;
+  version: number;
+  rerendering: number;
+  render_error: string | null;
 };
 
 let conn: Database.Database | null = null;
@@ -121,6 +129,15 @@ export function db(): Database.Database {
     ensureColumn(conn, 'clips', 'post_caption', 'text');
     ensureColumn(conn, 'clips', 'energy', 'integer');
     ensureColumn(conn, 'jobs', 'notice', 'text');
+    // Edição de clipes: versão limpa (sem legenda, com folga), palavras e legenda configurável.
+    ensureColumn(conn, 'clips', 'clean_path', 'text');
+    ensureColumn(conn, 'clips', 'clean_start_ms', 'integer');
+    ensureColumn(conn, 'clips', 'clean_end_ms', 'integer');
+    ensureColumn(conn, 'clips', 'words_json', 'text');
+    ensureColumn(conn, 'clips', 'captions_json', 'text');
+    ensureColumn(conn, 'clips', 'version', 'integer not null default 0');
+    ensureColumn(conn, 'clips', 'rerendering', 'integer not null default 0');
+    ensureColumn(conn, 'clips', 'render_error', 'text');
   }
   return conn;
 }

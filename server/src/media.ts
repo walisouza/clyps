@@ -134,6 +134,8 @@ export type RenderInput = {
   audioFilter?: string;
   /** Áudio já tratado (Auphonic), com o mesmo início e duração do trecho. Substitui o áudio original. */
   audioFile?: string;
+  /** Qualidade do x264 (menor = melhor). */
+  crf?: number;
 };
 
 /** Corta o trecho, reenquadra para o formato pedido e queima a legenda. */
@@ -168,9 +170,31 @@ export async function renderClip(r: RenderInput): Promise<void> {
     args.push('-map', audioMap, '-c:a', 'aac', '-b:a', '160k');
   }
   args.push(
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(r.crf ?? 20), '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     r.out,
   );
   await run('ffmpeg', args);
+}
+
+/**
+ * Gera o clipe final a partir da versão limpa: recorta [offset, offset+duração] e queima a legenda (se houver).
+ * O vídeo limpo já está reenquadrado e com o áudio tratado, então isso é bem mais rápido que o render completo.
+ */
+export async function burnFromClean(input: {
+  clean: string;
+  out: string;
+  offsetSec: number;
+  durationSec: number;
+  assPath?: string;
+}): Promise<void> {
+  await run('ffmpeg', [
+    '-y', '-v', 'error',
+    '-ss', Math.max(0, input.offsetSec).toFixed(3), '-i', input.clean, '-t', input.durationSec.toFixed(3),
+    ...(input.assPath ? ['-vf', `ass='${escapeFilterPath(input.assPath)}'`] : []),
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '160k',
+    '-movflags', '+faststart',
+    input.out,
+  ]);
 }

@@ -75,10 +75,15 @@ cd server && npm run smoke                             # testa só a renderizaç
 
 O banco já tem `users.credits` e `credit_ledger`. Cada job grava o custo em `jobs.credit_cost` (`CREDITS_PER_MINUTE` por minuto de vídeo). Por padrão nada é cobrado; com `ENFORCE_CREDITS=1` o servidor debita antes de processar e estorna se o job falhar. Falta, para vender: checkout, tela de planos e uma rota que credite o saldo.
 
+## Editar um clipe
+
+Cada clipe pronto tem um botão **Editar**: ajustar início e fim (com marcação pelo player), ligar ou desligar a legenda, trocar estilo, tamanho, posição e cor, corrigir o texto da legenda trecho a trecho e editar o título e a legenda do post. Ao salvar, o clipe é gerado de novo a partir de uma versão limpa guardada no servidor (já reenquadrada e com o áudio tratado, sem legenda, com 3 s de folga antes e depois), o que é bem mais rápido que o processamento completo.
+
 ## Limitações conhecidas
 
 - O enquadramento `fill` corta pelo centro; ainda não segue o rosto de quem fala.
-- Um job por vez; sem cancelamento no meio do processamento e sem editor de início/fim do corte.
+- Um job por vez e sem cancelamento no meio do processamento.
+- O editor só estende o corte até 3 s antes e depois do trecho escolhido (a folga guardada na versão limpa); clipes gerados antes do editor existir não podem ser editados.
 - Banco SQLite num único servidor: ótimo para uso interno, mas para um SaaS com muitos usuários vale migrar para Postgres e separar a fila.
 
 ## Uso responsável

@@ -5,10 +5,10 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { run } from '../src/exec.js';
 import { probe } from '../src/media.js';
-import { renderSelection } from '../src/render.js';
+import { cleanFileName, cleanRange, clipFileName, finalizeFromClean, renderClean } from '../src/render.js';
 import { mockSelect } from '../src/select.js';
 import { mockTranscribe } from '../src/transcribe.js';
-import { normalizeOptions, type JobOptions } from '../src/types.js';
+import { captionsFromOptions, normalizeOptions, type JobOptions } from '../src/types.js';
 
 const outDir = path.resolve(process.argv[2] ?? 'smoke-out');
 await mkdir(outDir, { recursive: true });
@@ -37,10 +37,14 @@ for (const v of variants) {
   const selections = mockSelect(words, opts, info.duration);
   if (!selections.length) throw new Error('Nenhuma seleção gerada');
   for (const s of selections) {
-    const r = await renderSelection(src, info, words, s, opts, outDir, n++);
-    const p = await probe(r.file);
+    const range = cleanRange(s, info.duration);
+    const clean = cleanFileName(outDir, n);
+    const file = clipFileName(outDir, n++);
+    await renderClean(src, info, range, opts, clean);
+    await finalizeFromClean({ clean, cleanStart: range.start, words, start: s.start, end: s.end, captions: captionsFromOptions(opts), out: file });
+    const p = await probe(file);
     console.log(
-      `${path.basename(r.file)}  ${opts.aspect} ${opts.layout} ${opts.captionStyle}  →  ${p.width}x${p.height}  ${p.duration.toFixed(1)}s  áudio:${p.hasAudio}`,
+      `${path.basename(file)}  ${opts.aspect} ${opts.layout} ${opts.captionStyle}  →  ${p.width}x${p.height}  ${p.duration.toFixed(1)}s  áudio:${p.hasAudio}`,
     );
   }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { api, type User } from './lib/api';
 import type { Features } from './lib/types';
+import ClipEditor from './pages/ClipEditor';
 import History from './pages/History';
 import JobDetail from './pages/JobDetail';
 import Login from './pages/Login';
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/" element={<NewClip features={session.features} />} />
           <Route path="/historico" element={<History />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
+          <Route path="/clips/:id/editar" element={<ClipEditor />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

@@ -9,6 +9,7 @@ export type JobOptions = {
   captionStyle: 'karaoke' | 'bold' | 'minimal' | 'none';
   captionPosition: 'bottom' | 'center' | 'top';
   highlightColor: string;
+  captionSize: 'small' | 'medium' | 'large';
   audioEnhance: 'off' | 'light' | 'strong' | 'auphonic';
   context?: string;
 };
@@ -42,6 +43,39 @@ export type Clip = {
   aspect: string;
   post_caption: string | null;
   energy: number | null;
+  version: number;
+  rerendering: boolean;
+  render_error: string | null;
+  editable: boolean;
+};
+
+export type CaptionSettings = {
+  enabled: boolean;
+  style: 'karaoke' | 'bold' | 'minimal';
+  position: 'bottom' | 'center' | 'top';
+  highlightColor: string;
+  size: 'small' | 'medium' | 'large';
+};
+
+export type Word = { word: string; start: number; end: number };
+export type Segment = { start: number; end: number; text: string };
+
+export type EditorData = {
+  clip: {
+    id: string;
+    jobId: string;
+    title: string;
+    postCaption: string | null;
+    startMs: number;
+    endMs: number;
+    version: number;
+    rerendering: boolean;
+    aspect: string;
+  };
+  clean: { startMs: number; endMs: number };
+  captions: CaptionSettings;
+  segments: Segment[];
+  words: Word[];
 };
 
 export type VideoPreview = {

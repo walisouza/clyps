@@ -33,7 +33,8 @@ export default function JobDetail() {
         if (!alive) return;
         setJob(data.job);
         setClips(data.clips);
-        if (data.job.status === 'queued' || data.job.status === 'processing') timer = setTimeout(tick, 3000);
+        const busy = data.job.status === 'queued' || data.job.status === 'processing' || data.clips.some((c) => c.rerendering);
+        if (busy) timer = setTimeout(tick, 3000);
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : 'Erro ao carregar.');
       }
@@ -126,7 +127,10 @@ export default function JobDetail() {
         <div className="clip-grid">
           {clips.map((c) => (
             <article key={c.id} className="card clip">
-              <video src={api.clipUrl(c.id)} controls preload="metadata" playsInline />
+              <div className="clip-video">
+                <video src={api.clipUrl(c.id, false, c.version)} controls preload="metadata" playsInline />
+                {c.rerendering && <div className="clip-updating">Atualizando o clipe…</div>}
+              </div>
               <div className="clip-body">
                 <div className="clip-meta mono">
                   <span className="score" title="Nota final (IA + energia)">{c.score ?? '—'}</span>
@@ -141,6 +145,7 @@ export default function JobDetail() {
                   </span>
                 </div>
                 <h3>{c.title}</h3>
+                {c.render_error && <p className="error small">{c.render_error}</p>}
                 {c.reason && <p className="muted small">{c.reason}</p>}
                 {c.transcript && (
                   <details>
@@ -150,12 +155,18 @@ export default function JobDetail() {
                 )}
                 <div className="clip-actions">
                   <a
-                    className="primary"
-                    href={api.clipUrl(c.id, true)}
-                    onClick={() => setModal({ clip: c, downloading: true })}
+                    className={`primary${c.rerendering ? ' disabled' : ''}`}
+                    href={c.rerendering ? undefined : api.clipUrl(c.id, true, c.version)}
+                    aria-disabled={c.rerendering}
+                    onClick={() => !c.rerendering && setModal({ clip: c, downloading: true })}
                   >
                     Baixar MP4
                   </a>
+                  {c.editable && !c.rerendering && (
+                    <Link to={`/clips/${c.id}/editar`} className="link small">
+                      Editar
+                    </Link>
+                  )}
                   <button type="button" className="link small" onClick={() => setModal({ clip: c, downloading: false })}>
                     Legenda do post
                   </button>

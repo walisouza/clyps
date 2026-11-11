@@ -11,11 +11,11 @@ import { adjustCredits, db, updateJob, type JobRow } from './db.js';
 import { measureEnergy, normalizeEnergy } from './energy.js';
 import { UserError } from './errors.js';
 import { extractAudio, extractAudioSegments, extractClipAudio, probe, ytDownload, ytInfo } from './media.js';
-import { renderSelection } from './render.js';
+import { cleanFileName, cleanRange, clipFileName, finalizeFromClean, renderClean, type Range } from './render.js';
 import { heuristicSelect } from './heuristic.js';
 import { mockSelect, selectClips } from './select.js';
 import { ensureSpeachesReady, mockTranscribe, transcribe, transcribeAssemblyAI } from './transcribe.js';
-import { normalizeOptions, type Selection } from './types.js';
+import { captionsFromOptions, normalizeOptions, type Selection } from './types.js';
 
 const STAGE_NAMES: Record<string, string> = {
   starting: 'início',
@@ -51,7 +51,7 @@ const AUPHONIC_PARALLEL = 3;
 async function enhanceWithAuphonic(
   jobId: string,
   src: string,
-  selections: Selection[],
+  selections: Range[],
   tmp: string,
 ): Promise<{ files: (string | undefined)[]; failed: number; reason?: string }> {
   const files: (string | undefined)[] = new Array(selections.length).fill(undefined);
@@ -205,13 +205,15 @@ export async function processJob(job: JobRow): Promise<void> {
     }
     if (!selections.length) throw new UserError('Não encontramos trechos bons para corte neste vídeo.');
 
+    // Intervalo de cada clipe com folga: base da versão limpa (e do áudio do Auphonic).
+    const ranges = selections.map((s) => cleanRange(s, info.duration));
     let enhanced: (string | undefined)[] = [];
     if (opts.audioEnhance === 'auphonic') {
       if (!config.auphonicApiKey) {
         addNotice('O Auphonic não está configurado no servidor (AUPHONIC_API_KEY); usamos o tratamento de voz Forte do Clyps.');
       } else if (info.hasAudio) {
         updateJob(job.id, { stage: 'enhancing', progress: 56 });
-        const r = await enhanceWithAuphonic(job.id, source.file, selections, tmp);
+        const r = await enhanceWithAuphonic(job.id, source.file, ranges, tmp);
         enhanced = r.files;
         if (r.failed > 0) {
           addNotice(
@@ -228,17 +230,26 @@ export async function processJob(job: JobRow): Promise<void> {
 
     const insert = db().prepare(
       `insert into clips (id, job_id, user_id, idx, title, reason, score, start_ms, end_ms, transcript, file_path, aspect,
-                          post_caption, energy)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          post_caption, energy, clean_path, clean_start_ms, clean_end_ms, words_json, captions_json)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    const captions = captionsFromOptions(opts);
     for (let i = 0; i < selections.length; i++) {
       const s = selections[i];
-      const rendered = await renderSelection(source.file, info, words, s, opts, outDir, i, enhanced[i]);
-      await rm(path.join(outDir, `clip-${i}.ass`), { force: true });
+      const range = ranges[i];
+      const clean = cleanFileName(outDir, i);
+      const file = clipFileName(outDir, i);
+      await renderClean(source.file, info, range, opts, clean, enhanced[i]);
+      // Palavras do intervalo com folga, em tempo absoluto: permitem editar corte e legenda depois.
+      const rangeWords = words.filter((w) => w.start >= range.start - 0.05 && w.end <= range.end + 0.05);
+      const { transcript } = await finalizeFromClean({
+        clean, cleanStart: range.start, words: rangeWords, start: s.start, end: s.end, captions, out: file,
+      });
       insert.run(
         randomUUID(), job.id, job.user_id, i, s.title, s.reason, s.score,
-        Math.round(s.start * 1000), Math.round(s.end * 1000), rendered.transcript, rendered.file, opts.aspect,
+        Math.round(s.start * 1000), Math.round(s.end * 1000), transcript, file, opts.aspect,
         s.post ?? null, s.energy ?? null,
+        clean, Math.round(range.start * 1000), Math.round(range.end * 1000), JSON.stringify(rangeWords), JSON.stringify(captions),
       );
       updateJob(job.id, { progress: 64 + Math.round(((i + 1) / selections.length) * 34) });
     }

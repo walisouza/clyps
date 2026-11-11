@@ -8,6 +8,8 @@ type CaptionInput = {
   font: string;
   width: number;
   height: number;
+  /** Multiplicador do tamanho da fonte (1 = padrão do estilo). */
+  scale?: number;
 };
 
 const PRESETS = {
@@ -55,7 +57,7 @@ export function groupWords(words: Word[], maxWords: number): Word[][] {
 export function buildAss(input: CaptionInput): string {
   const preset = PRESETS[input.style];
   const base = Math.min(input.width, input.height * 0.75);
-  const fontSize = Math.round(base * preset.sizeRatio * 1.6);
+  const fontSize = Math.round(base * preset.sizeRatio * 1.6 * Math.min(2, Math.max(0.5, input.scale ?? 1)));
   const outline = Math.max(2, Math.round(fontSize * preset.outline));
   const alignment = input.position === 'top' ? 8 : input.position === 'center' ? 5 : 2;
   const marginV = Math.round(input.height * (input.position === 'center' ? 0 : 0.14));

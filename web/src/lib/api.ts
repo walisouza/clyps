@@ -1,4 +1,4 @@
-import type { Clip, Features, Job, JobOptions, VideoPreview } from './types';
+import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, VideoPreview } from './types';
 
 export type User = { id: string; email: string; credits: number };
 
@@ -54,7 +54,29 @@ export const api = {
     });
   },
 
-  clipUrl: (clipId: string, download = false) => `/api/clips/${clipId}/file${download ? '?download=1' : ''}`,
+  /** URL do vídeo do clipe; a versão muda a cada edição, o que evita mostrar o arquivo antigo do cache. */
+  clipUrl: (clipId: string, download = false, version = 0, variant?: 'clean') => {
+    const q = new URLSearchParams();
+    if (download) q.set('download', '1');
+    if (version) q.set('v', String(version));
+    if (variant) q.set('variant', variant);
+    const s = q.toString();
+    return `/api/clips/${clipId}/file${s ? `?${s}` : ''}`;
+  },
+
+  getEditor: (clipId: string) => request<EditorData>(`/clips/${clipId}/editor`),
+  saveEditor: (
+    clipId: string,
+    body: {
+      version: number;
+      startMs: number;
+      endMs: number;
+      title: string;
+      postCaption: string;
+      captions: CaptionSettings;
+      texts: string[];
+    },
+  ) => request<{ ok: true }>(`/clips/${clipId}/editor`, { method: 'PUT', body: JSON.stringify(body) }),
 
   cookies: {
     status: () => request<{ hasCookies: boolean; uploadedAt?: string; size?: number }>('/cookies'),

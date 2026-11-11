@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CookiesPanel from '../components/CookiesPanel';
 import LinkPreview from '../components/LinkPreview';
+import Segmented from '../components/Segmented';
 import { api } from '../lib/api';
 import type { Features, JobOptions } from '../lib/types';
 
@@ -14,40 +15,12 @@ const DEFAULTS: JobOptions = {
   captionStyle: 'karaoke',
   captionPosition: 'bottom',
   highlightColor: '#FFE14D',
+  captionSize: 'medium',
   audioEnhance: 'light',
 };
 
 const MAX_UPLOAD_BYTES = 4 * 1024 ** 3;
 const ACCEPTED = ['video/mp4', 'video/quicktime', 'video/webm'];
-
-type Option<T extends string> = { value: T; label: string; hint?: string };
-
-function Segmented<T extends string>(props: {
-  label: string;
-  value: T;
-  options: Option<T>[];
-  onChange: (v: T) => void;
-}) {
-  return (
-    <fieldset className="field">
-      <legend>{props.label}</legend>
-      <div className="segmented">
-        {props.options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            className={o.value === props.value ? 'on' : ''}
-            aria-pressed={o.value === props.value}
-            onClick={() => props.onChange(o.value)}
-          >
-            {o.label}
-            {o.hint && <small>{o.hint}</small>}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
 
 export default function NewClip({ features }: { features?: Features }) {
   const navigate = useNavigate();
@@ -58,6 +31,8 @@ export default function NewClip({ features }: { features?: Features }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tooLong, setTooLong] = useState(false);
+  // Último estilo escolhido, para religar a legenda do jeito que estava.
+  const [lastStyle, setLastStyle] = useState<Exclude<JobOptions['captionStyle'], 'none'>>('karaoke');
 
   const set = <K extends keyof JobOptions>(key: K, value: JobOptions[K]) => setOpts((o) => ({ ...o, [key]: value }));
 
@@ -202,16 +177,41 @@ export default function NewClip({ features }: { features?: Features }) {
           />
         )}
         <Segmented
-          label="Estilo da legenda"
-          value={opts.captionStyle}
-          onChange={(v) => set('captionStyle', v)}
+          label="Legenda"
+          value={opts.captionStyle === 'none' ? 'off' : 'on'}
+          onChange={(v) => set('captionStyle', v === 'off' ? 'none' : lastStyle)}
           options={[
-            { value: 'karaoke', label: 'Karaokê', hint: 'palavra destacada' },
-            { value: 'bold', label: 'Impacto', hint: 'poucas palavras, grande' },
-            { value: 'minimal', label: 'Discreta' },
-            { value: 'none', label: 'Sem legenda' },
+            { value: 'on', label: 'Ligada', hint: 'queimada no vídeo' },
+            { value: 'off', label: 'Desligada', hint: 'vídeo sem texto' },
           ]}
         />
+        {opts.captionStyle !== 'none' && (
+          <Segmented
+            label="Estilo da legenda"
+            value={opts.captionStyle}
+            onChange={(v) => {
+              setLastStyle(v);
+              set('captionStyle', v);
+            }}
+            options={[
+              { value: 'karaoke', label: 'Karaokê', hint: 'palavra destacada' },
+              { value: 'bold', label: 'Impacto', hint: 'poucas palavras, grande' },
+              { value: 'minimal', label: 'Discreta' },
+            ]}
+          />
+        )}
+        {opts.captionStyle !== 'none' && (
+          <Segmented
+            label="Tamanho da legenda"
+            value={opts.captionSize}
+            onChange={(v) => set('captionSize', v)}
+            options={[
+              { value: 'small', label: 'Pequena' },
+              { value: 'medium', label: 'Média' },
+              { value: 'large', label: 'Grande' },
+            ]}
+          />
+        )}
         {opts.captionStyle !== 'none' && (
           <div className="row">
             <Segmented
