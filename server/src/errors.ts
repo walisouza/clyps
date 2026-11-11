@@ -14,7 +14,8 @@ function serviceMessage(body: string): string {
   let msg = body;
   try {
     const j = JSON.parse(body);
-    msg = String(j?.error?.message ?? j?.error_message ?? j?.error ?? j?.message ?? j?.detail ?? body);
+    // O Gateway da AssemblyAI põe o motivo real em metadata.errors; "message" é genérico.
+    msg = String(j?.metadata?.errors?.[0] ?? j?.error?.message ?? j?.error_message ?? j?.error ?? j?.message ?? j?.detail ?? body);
   } catch {
     /* corpo não é JSON */
   }

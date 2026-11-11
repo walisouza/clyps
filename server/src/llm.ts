@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { LLM_GATEWAY, LLM_GENERIC, apiError } from './errors.js';
+import { LLM_GATEWAY, LLM_GENERIC, UserError, apiError } from './errors.js';
 
 type Message = { role: 'system' | 'user'; content: string };
 type Variant = { label: string; model: string; build: (system: string, user: string) => Record<string, unknown> };
@@ -59,10 +59,10 @@ export async function chat(system: string, user: string): Promise<string> {
   const gateway = config.llmViaAssemblyAI;
 
   if (!gateway) {
-    const res = await post(
-      { model: config.llmModel, messages: withSystem(system, user), response_format: { type: 'json_object' } },
-      false,
-    );
+    const base = { model: config.llmModel, messages: withSystem(system, user) };
+    let res = await post({ ...base, response_format: { type: 'json_object' } }, false);
+    // Alguns provedores compatíveis não aceitam response_format: o Clyps já extrai o JSON do texto.
+    if (res.status === 400) res = await post(base, false);
     if (!res.ok) throw apiError(LLM_GENERIC, res.status, await res.text(), 'LLM_API_KEY');
     return contentOf(await res.json());
   }
@@ -88,6 +88,12 @@ export async function chat(system: string, user: string): Promise<string> {
     // Só vale tentar outro formato quando o pedido foi recusado pelo conteúdo (400/404/422).
     if (![400, 404, 422].includes(res.status)) break;
     console.warn(`[LLM Gateway] variação "${v.label}" recusada (${res.status}): ${body.slice(0, 300)}`);
+  }
+  if (last && /does not have access/i.test(last.body)) {
+    throw new UserError(
+      'Sua conta da AssemblyAI não tem acesso ao LLM Gateway (ele não faz parte do plano gratuito). ' +
+        'Cadastre um cartão na conta da AssemblyAI para liberar, ou configure LLM_API_KEY, LLM_BASE_URL e LLM_MODEL de outro provedor no .env.',
+    );
   }
   throw apiError(LLM_GATEWAY, last?.status ?? 500, last?.body ?? '', 'ASSEMBLYAI_API_KEY');
 }
