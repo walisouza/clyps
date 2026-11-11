@@ -42,10 +42,23 @@ export const config = {
   assemblyaiBaseUrl: process.env.ASSEMBLYAI_BASE_URL || 'https://api.assemblyai.com',
 
   /** Qual serviço transcreve: AssemblyAI se houver chave; senão, API compatível com OpenAI. */
-  get sttProvider(): 'assemblyai' | 'openai' | null {
+  get sttProvider(): 'speaches' | 'assemblyai' | 'openai' | null {
+    const forced = (process.env.STT_PROVIDER ?? '').trim().toLowerCase();
+    if (forced === 'speaches' && this.speachesUrl) return 'speaches';
+    if (forced === 'assemblyai' && this.assemblyaiApiKey) return 'assemblyai';
+    if (forced === 'openai' && secret('STT_API_KEY')) return 'openai';
+    if (this.speachesUrl) return 'speaches';
     if (this.assemblyaiApiKey) return 'assemblyai';
     if (secret('STT_API_KEY')) return 'openai';
     return null;
+  },
+
+  // Speaches: Whisper rodando na própria VPS (container "speaches" do docker compose). Sem chave nem custo.
+  get speachesUrl() {
+    return (process.env.SPEACHES_URL ?? '').trim().replace(/\/+$/, '');
+  },
+  get speachesModel() {
+    return (process.env.SPEACHES_MODEL ?? '').trim() || 'Systran/faster-whisper-small';
   },
 
   // Auphonic: tratamento profissional de voz (ruído e eco), por clipe.
@@ -79,6 +92,10 @@ export const config = {
   },
   get llmApiKey() {
     return secret('LLM_API_KEY') || this.assemblyaiApiKey || required('LLM_API_KEY');
+  },
+  /** true se há um LLM configurado. Sem ele, os trechos são escolhidos sem IA de texto (energia + frases). */
+  get llmConfigured() {
+    return Boolean(secret('LLM_API_KEY') && (process.env.LLM_MODEL ?? '').trim()) || this.llmViaAssemblyAI;
   },
   get llmModel() {
     return process.env.LLM_MODEL || (this.llmViaAssemblyAI ? 'claude-sonnet-4-6' : required('LLM_MODEL'));

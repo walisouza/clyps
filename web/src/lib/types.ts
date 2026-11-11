@@ -28,7 +28,7 @@ export type Job = {
   created_at: string;
 };
 
-export type Features = { auphonic: boolean; transcription: 'assemblyai' | 'openai' | null };
+export type Features = { auphonic: boolean; transcription: 'speaches' | 'assemblyai' | 'openai' | null; textAi?: boolean };
 
 export type Clip = {
   id: string;
@@ -65,6 +65,7 @@ export const STAGE_LABEL: Record<string, string> = {
   starting: 'Iniciando',
   downloading: 'Baixando o vídeo',
   analyzing: 'Medindo a energia do áudio',
+  preparing_stt: 'Preparando a transcrição (na primeira vez baixa o modelo)',
   transcribing: 'Transcrevendo a fala',
   selecting: 'Escolhendo os melhores trechos',
   enhancing: 'Tratando a voz no Auphonic',

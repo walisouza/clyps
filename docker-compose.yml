@@ -4,8 +4,27 @@ services:
   app:
     build: .
     env_file: .env
+    environment:
+      # Transcrição local pelo Speaches (container abaixo). Para usar outro serviço, defina STT_PROVIDER no .env.
+      STT_PROVIDER: ${STT_PROVIDER:-speaches}
+      SPEACHES_URL: http://speaches:8000/v1
+      SPEACHES_MODEL: ${SPEACHES_MODEL:-Systran/faster-whisper-small}
     volumes:
       - clyps_data:/data
+    depends_on:
+      - speaches
+    restart: unless-stopped
+
+  # Whisper rodando na própria VPS (https://speaches.ai). Só o app enxerga este serviço; nenhuma porta é aberta.
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    environment:
+      PRELOAD_MODELS: '["${SPEACHES_MODEL:-Systran/faster-whisper-small}"]'
+      WHISPER__COMPUTE_TYPE: int8
+      STT_MODEL_TTL: ${SPEACHES_MODEL_TTL:-600}
+      ENABLE_UI: "false"
+    volumes:
+      - speaches_models:/home/ubuntu/.cache/huggingface/hub
     restart: unless-stopped
 
   caddy:
@@ -25,3 +44,4 @@ services:
 volumes:
   clyps_data:
   caddy_data:
+  speaches_models:

@@ -63,8 +63,8 @@ export default function App() {
       )}
       {!session.mock && session.features && !session.features.transcription && (
         <div className="mock-banner" role="alert">
-          <strong>Transcrição não configurada.</strong> O servidor não encontrou <code>ASSEMBLYAI_API_KEY</code> no{' '}
-          <code>.env</code>; os cortes vão falhar até ela ser adicionada (em uma linha própria) e o app reiniciado.
+          <strong>Transcrição não configurada.</strong> O servidor não encontrou o Speaches nem uma chave de transcrição; os cortes vão falhar até isso ser configurado e o
+          app reiniciado.
         </div>
       )}
       <main className="page">

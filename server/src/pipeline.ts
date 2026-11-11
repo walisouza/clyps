@@ -12,8 +12,9 @@ import { measureEnergy, normalizeEnergy } from './energy.js';
 import { UserError } from './errors.js';
 import { extractAudio, extractAudioSegments, extractClipAudio, probe, ytDownload, ytInfo } from './media.js';
 import { renderSelection } from './render.js';
+import { heuristicSelect } from './heuristic.js';
 import { mockSelect, selectClips } from './select.js';
-import { mockTranscribe, transcribe, transcribeAssemblyAI } from './transcribe.js';
+import { ensureSpeachesReady, mockTranscribe, transcribe, transcribeAssemblyAI } from './transcribe.js';
 import { normalizeOptions, type Selection } from './types.js';
 
 export const clipsDir = (jobId: string) => path.join(config.dataDir, 'clips', jobId);
@@ -21,18 +22,13 @@ const nowIso = () => new Date().toISOString();
 
 function assertAiConfigured(): void {
   if (config.mock) return;
-  if (isPlaceholder(config.assemblyaiApiKey)) {
+  if (config.sttProvider === 'assemblyai' && isPlaceholder(config.assemblyaiApiKey)) {
     throw new UserError('A ASSEMBLYAI_API_KEY no .env ainda é o texto de exemplo. Troque pela sua chave da AssemblyAI.');
   }
   if (!config.sttProvider) {
-    throw new UserError('Falta configurar a transcrição no servidor: ASSEMBLYAI_API_KEY (ou STT_API_KEY) no .env.');
+    throw new UserError('Falta configurar a transcrição no servidor: o Speaches (SPEACHES_URL) ou ASSEMBLYAI_API_KEY no .env.');
   }
-  try {
-    void config.llmApiKey;
-    void config.llmModel;
-  } catch {
-    throw new UserError('Falta configurar a IA que escolhe os trechos: ASSEMBLYAI_API_KEY (ou LLM_API_KEY e LLM_MODEL) no .env.');
-  }
+  // O LLM é opcional: sem ele, os trechos são escolhidos pela energia da fala e pelas frases.
 }
 
 const AUPHONIC_PARALLEL = 3;
@@ -103,6 +99,12 @@ export async function processJob(job: JobRow): Promise<void> {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'clyps-'));
   const outDir = clipsDir(job.id);
   let charged = 0;
+  // Avisos não fatais acumulados (ex.: sem LLM, Auphonic falhou). Aparecem na tela do corte.
+  const notices: string[] = [];
+  const addNotice = (msg: string) => {
+    notices.push(msg);
+    updateJob(job.id, { notice: notices.join(' ') });
+  };
 
   try {
     assertAiConfigured();
@@ -146,32 +148,56 @@ export async function processJob(job: JobRow): Promise<void> {
         updateJob(job.id, { progress: 20 + Math.round(f * 30) }),
       );
     } else {
+      const local = config.sttProvider === 'speaches';
+      if (local) {
+        await ensureSpeachesReady(() => updateJob(job.id, { stage: 'preparing_stt' }));
+        updateJob(job.id, { stage: 'transcribing' });
+      }
+      // No Speaches (CPU da VPS) partes menores dão progresso mais frequente e evitam pedidos muito longos.
+      const segmentSeconds = local ? 600 : 1200;
       words = await transcribe(
-        await extractAudioSegments(source.file, tmp, sttAudioFilter(opts.audioEnhance)),
+        await extractAudioSegments(source.file, tmp, sttAudioFilter(opts.audioEnhance), segmentSeconds),
         opts.language,
         async (done, total) => updateJob(job.id, { progress: 20 + Math.round((done / total) * 30) }),
+        segmentSeconds,
       );
     }
     if (words.length < 20) throw new UserError('Não encontramos fala suficiente no vídeo para gerar cortes.');
 
     updateJob(job.id, { stage: 'selecting', progress: 52 });
-    const selections = config.mock
-      ? mockSelect(words, opts, info.duration, norm)
-      : await selectClips(words, opts, source.title, info.duration, norm);
-    if (!selections.length) throw new UserError('A IA não encontrou trechos bons para corte neste vídeo.');
+    let selections;
+    if (config.mock) {
+      selections = mockSelect(words, opts, info.duration, norm);
+    } else if (!config.llmConfigured) {
+      selections = heuristicSelect(words, opts, info.duration, norm);
+      addNotice(
+        'Sem IA de texto configurada: os trechos foram escolhidos pela energia da fala e pelas frases, e a legenda do post usa o começo da fala. Para títulos e legendas escritos por IA, configure LLM_API_KEY, LLM_BASE_URL e LLM_MODEL.',
+      );
+    } else {
+      try {
+        selections = await selectClips(words, opts, source.title, info.duration, norm);
+      } catch (err) {
+        // Chave recusada, sem crédito ou sem acesso: não perde o corte, cai na seleção sem IA de texto.
+        if (!(err instanceof UserError)) throw err;
+        console.warn(`[job ${job.id}] LLM indisponível, usando seleção sem IA de texto:`, err.message);
+        selections = heuristicSelect(words, opts, info.duration, norm);
+        addNotice(`A IA de texto falhou (${err.message}) Os trechos foram escolhidos pela energia da fala e pelas frases.`);
+      }
+    }
+    if (!selections.length) throw new UserError('Não encontramos trechos bons para corte neste vídeo.');
 
     let enhanced: (string | undefined)[] = [];
     if (opts.audioEnhance === 'auphonic') {
       if (!config.auphonicApiKey) {
-        updateJob(job.id, { notice: 'O Auphonic não está configurado no servidor (AUPHONIC_API_KEY); usamos o tratamento de voz Forte do Clyps.' });
+        addNotice('O Auphonic não está configurado no servidor (AUPHONIC_API_KEY); usamos o tratamento de voz Forte do Clyps.');
       } else if (info.hasAudio) {
         updateJob(job.id, { stage: 'enhancing', progress: 56 });
         const r = await enhanceWithAuphonic(job.id, source.file, selections, tmp);
         enhanced = r.files;
         if (r.failed > 0) {
-          updateJob(job.id, {
-            notice: `O Auphonic não tratou ${r.failed} de ${selections.length} clipes${r.reason ? ` (${r.reason})` : ''}. Nesses, usamos o tratamento de voz Forte do Clyps.`,
-          });
+          addNotice(
+            `O Auphonic não tratou ${r.failed} de ${selections.length} clipes${r.reason ? ` (${r.reason})` : ''}. Nesses, usamos o tratamento de voz Forte do Clyps.`,
+          );
         }
       }
     }

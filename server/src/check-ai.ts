@@ -18,6 +18,19 @@ console.log(`LLM: ${config.llmViaAssemblyAI ? 'LLM Gateway da AssemblyAI' : conf
 })()}`);
 console.log('');
 
+if (config.sttProvider === 'speaches') {
+  console.log(`Speaches — ${config.speachesUrl} · modelo ${config.speachesModel}`);
+  try {
+    const h = await fetch(config.speachesUrl.replace(/\/v1$/, '') + '/health');
+    line(h.ok, `serviço: HTTP ${h.status}`);
+    const m = await fetch(`${config.speachesUrl}/models/${config.speachesModel}`);
+    line(m.ok, m.ok ? 'modelo instalado' : `modelo ainda não instalado (HTTP ${m.status}); é baixado no primeiro corte`);
+  } catch (err) {
+    line(false, `sem resposta (${(err as Error).message}). Confira: docker compose ps / docker compose logs speaches`);
+  }
+  console.log(config.llmConfigured ? '' : 'IA de texto: não configurada — os trechos serão escolhidos pela energia da fala e pelas frases.\n');
+}
+
 if (config.assemblyaiApiKey) {
   console.log(`AssemblyAI — chave ${mask(config.assemblyaiApiKey)}`);
   if (isPlaceholder(config.assemblyaiApiKey)) line(false, 'a chave ainda é o texto de exemplo');

@@ -80,14 +80,20 @@ export async function extractClipAudio(file: string, out: string, startSec: numb
   ]);
 }
 
+/** Duração de cada parte enviada à transcrição (APIs na nuvem aceitam 20 min; o Speaches local vai melhor com 10). */
 export const SEGMENT_SECONDS = 1200;
 
 /** Extrai o áudio em MP3 mono leve, em partes de 20 min (limite de upload das APIs de transcrição). */
-export async function extractAudioSegments(file: string, dir: string, audioFilter?: string): Promise<string[]> {
+export async function extractAudioSegments(
+  file: string,
+  dir: string,
+  audioFilter?: string,
+  segmentSeconds = SEGMENT_SECONDS,
+): Promise<string[]> {
   await run('ffmpeg', [
     '-y', '-v', 'error', '-i', file,
     '-vn', ...(audioFilter ? ['-af', audioFilter] : []), '-ac', '1', '-ar', '16000', '-b:a', '32k',
-    '-f', 'segment', '-segment_time', String(SEGMENT_SECONDS), '-reset_timestamps', '1',
+    '-f', 'segment', '-segment_time', String(segmentSeconds), '-reset_timestamps', '1',
     path.join(dir, 'audio-%03d.mp3'),
   ]);
   const files = (await readdir(dir)).filter((f) => f.startsWith('audio-')).sort();

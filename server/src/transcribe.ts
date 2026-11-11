@@ -1,25 +1,49 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Agent } from 'undici';
 import { config } from './config.js';
 import { ASSEMBLYAI, UserError, apiError, sleep } from './errors.js';
 import { SEGMENT_SECONDS } from './media.js';
 import type { Word } from './types.js';
 
-async function transcribeFile(file: string, language: string): Promise<Word[]> {
+type SttTarget = { baseUrl: string; apiKey: string; model: string; service: string };
+
+/**
+ * Sem limite de tempo de resposta: no Speaches (CPU da VPS) cada parte pode levar vários minutos,
+ * e o fetch do Node desiste depois de 5 min esperando os cabeçalhos.
+ */
+const patientAgent = new Agent({ headersTimeout: 0, bodyTimeout: 0, connectTimeout: 30_000 });
+
+function sttTarget(): SttTarget {
+  if (config.sttProvider === 'speaches') {
+    return { baseUrl: config.speachesUrl, apiKey: 'local', model: config.speachesModel, service: 'Speaches' };
+  }
+  return { baseUrl: config.sttBaseUrl, apiKey: config.sttApiKey, model: config.sttModel, service: 'serviço de transcrição' };
+}
+
+async function transcribeFile(target: SttTarget, file: string, language: string): Promise<Word[]> {
   const form = new FormData();
   form.append('file', new Blob([await readFile(file)], { type: 'audio/mpeg' }), path.basename(file));
-  form.append('model', config.sttModel);
+  form.append('model', target.model);
   form.append('language', language);
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'word');
 
   let lastError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(`${config.sttBaseUrl}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${config.sttApiKey}` },
-      body: form,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${target.baseUrl}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${target.apiKey}` },
+        body: form,
+        dispatcher: patientAgent,
+      } as RequestInit);
+    } catch (err) {
+      lastError = `sem conexão (${(err as Error).message})`;
+      await sleep(attempt * 5000);
+      continue;
+    }
     if (res.ok) {
       const json: any = await res.json();
       const words = Array.isArray(json.words) ? json.words : [];
@@ -27,9 +51,47 @@ async function transcribeFile(file: string, language: string): Promise<Word[]> {
     }
     lastError = `${res.status} ${(await res.text()).slice(0, 300)}`;
     if (res.status < 500 && res.status !== 429) break;
-    await new Promise((r) => setTimeout(r, attempt * 3000));
+    await sleep(attempt * 3000);
   }
-  throw new Error(`Falha na transcrição: ${lastError}`);
+  throw new UserError(`O ${target.service} não conseguiu transcrever o áudio: ${lastError.slice(0, 200)}`);
+}
+
+/**
+ * Speaches: espera o container responder e garante que o modelo está baixado.
+ * Na primeira vez o download leva alguns minutos (o PRELOAD_MODELS do compose costuma adiantar isso).
+ */
+export async function ensureSpeachesReady(onWait?: (msg: string) => void): Promise<void> {
+  const base = config.speachesUrl;
+  const root = base.replace(/\/v1$/, '');
+  const model = encodeURIComponent(config.speachesModel).replace(/%2F/g, '/');
+
+  const started = Date.now();
+  for (;;) {
+    try {
+      const health = await fetch(`${root}/health`);
+      if (health.ok) break;
+    } catch {
+      /* ainda subindo */
+    }
+    if (Date.now() - started > 5 * 60_000) {
+      throw new UserError('O Speaches não respondeu. Confira se o container está rodando: docker compose ps');
+    }
+    onWait?.('Aguardando o Speaches iniciar');
+    await sleep(5000);
+  }
+
+  const info = await fetch(`${base}/models/${model}`);
+  if (info.ok) return;
+  if (info.status !== 404) {
+    throw new UserError(`O Speaches respondeu com erro (${info.status}) ao consultar o modelo ${config.speachesModel}.`);
+  }
+  onWait?.(`Baixando o modelo ${config.speachesModel} (só na primeira vez)`);
+  const dl = await fetch(`${base}/models/${model}`, { method: 'POST', dispatcher: patientAgent } as RequestInit);
+  if (!dl.ok && dl.status !== 409) {
+    throw new UserError(
+      `O Speaches não conseguiu baixar o modelo ${config.speachesModel} (${dl.status}): ${(await dl.text()).slice(0, 160)}`,
+    );
+  }
 }
 
 /** Transcreve as partes de áudio em ordem e devolve palavras com tempo absoluto. */
@@ -37,11 +99,13 @@ export async function transcribe(
   segments: string[],
   language: string,
   onProgress: (done: number, total: number) => Promise<void>,
+  segmentSeconds = SEGMENT_SECONDS,
 ): Promise<Word[]> {
+  const target = sttTarget();
   const all: Word[] = [];
   for (let i = 0; i < segments.length; i++) {
-    const offset = i * SEGMENT_SECONDS;
-    const words = await transcribeFile(segments[i], language);
+    const offset = i * segmentSeconds;
+    const words = await transcribeFile(target, segments[i], language);
     for (const w of words) all.push({ word: w.word, start: w.start + offset, end: w.end + offset });
     await onProgress(i + 1, segments.length);
   }

@@ -2,7 +2,7 @@
 
 Vídeos longos viram cortes prontos para postar: o Clyps transcreve a fala, usa IA para escolher os melhores trechos e entrega cada clipe já reenquadrado (9:16, 1:1 ou 4:5) e com legenda queimada.
 
-Roda inteiro numa VPS, sem serviços externos além das APIs de IA: login, banco (SQLite) e arquivos ficam no próprio servidor.
+Roda inteiro numa VPS: login, banco (SQLite), arquivos e transcrição (Speaches/Whisper) ficam no próprio servidor. APIs externas de IA são opcionais.
 
 ## Como funciona
 
@@ -33,18 +33,19 @@ docker compose logs -f app            # deve mostrar "Clyps no ar"
 
 Abra `http://IP-DA-VPS`. A primeira conta criada é a de administrador; depois dela o cadastro fecha sozinho (para abrir de novo, `ALLOW_SIGNUP=1`).
 
-O `.env.example` já vem com `MOCK_AI=1`: tudo funciona, mas a transcrição e a escolha dos trechos são simuladas. Para usar IA de verdade, edite o `.env`, apague essa linha, preencha `ASSEMBLYAI_API_KEY` (cada variável numa linha própria, sem espaços em volta do `=`) e rode `docker compose up -d --force-recreate app`. Para conferir: `docker compose exec app sh -c 'echo ${ASSEMBLYAI_API_KEY:+chave carregada}'`.
+O `.env.example` já vem com `MOCK_AI=1`: tudo funciona, mas a transcrição e a escolha dos trechos são simuladas. Para usar de verdade, apague essa linha do `.env` e rode `docker compose up -d --force-recreate app`.
 
-- **AssemblyAI:** uma chave cobre a transcrição (tempo por palavra) e, pelo LLM Gateway, a escolha dos trechos e a legenda do post. Modelo padrão `claude-sonnet-4-6` (troque com `LLM_MODEL`).
-- **Auphonic (opcional):** com `AUPHONIC_API_KEY`, aparece o tratamento de voz "Profissional", que manda cada clipe ao Auphonic (remoção de ruído e eco com IA, -14 LUFS). Se o Auphonic falhar, o clipe sai com o tratamento Forte local e o corte mostra um aviso.
-- Também funciona com APIs no padrão OpenAI (`STT_API_KEY`, `LLM_API_KEY`, `LLM_MODEL`).
+- **Transcrição (Speaches):** o `docker compose` sobe junto um container do [Speaches](https://speaches.ai), que roda o Whisper na própria VPS, sem chave e sem custo por minuto. O modelo padrão é `Systran/faster-whisper-small` (troque com `SPEACHES_MODEL`); ele é baixado na primeira subida. Em CPU a transcrição é mais lenta que nas APIs pagas; o tempo depende da VPS e do modelo.
+- **IA de texto (opcional):** com `LLM_API_KEY`, `LLM_BASE_URL` e `LLM_MODEL` (qualquer serviço no padrão OpenAI), a IA escolhe os trechos e escreve títulos e legendas do post. Sem ela, ou se ela falhar, o Clyps escolhe os trechos pela energia da fala e pelas frases completas, e o corte mostra um aviso.
+- **Auphonic (opcional):** com `AUPHONIC_API_KEY`, aparece o tratamento de voz "Profissional", que manda cada clipe ao Auphonic (remoção de ruído e eco com IA, -14 LUFS). Se ele falhar, o clipe sai com o tratamento Forte local.
+- **Diagnóstico:** `docker compose exec app npx tsx src/check-ai.ts` mostra o que está configurado e se cada serviço responde.
 
 - **Domínio e HTTPS:** aponte o domínio para o IP da VPS e coloque-o em `SITE_ADDRESS`. O certificado é emitido sozinho. Use HTTPS antes de usar para valer: sem ele, a senha trafega sem criptografia.
 - **Portas ocupadas:** se a VPS já tem outro site nas portas 80/443, mude `HTTP_PORT` e `HTTPS_PORT`.
 - **Atualizar:** `./scripts/update.sh` (busca a versão nova no GitHub e reconstrói só se mudou). Para atualizar sozinho a cada 5 minutos, adicione ao `crontab -e`:
   `*/5 * * * * /root/clyps/scripts/update.sh >> /root/clyps-update.log 2>&1`
 - **Backup:** tudo fica no volume `clyps_data` (banco e clipes).
-- **Recursos:** 2 vCPU e 4 GB de RAM ou mais, e espaço em disco para os vídeos de origem durante o processamento.
+- **Recursos:** 2 vCPU e 4 GB de RAM ou mais (o Speaches usa ~1 GB com o modelo small), e espaço em disco para a imagem do Speaches, o modelo e os vídeos durante o processamento.
 
 ## Desenvolvimento local
 

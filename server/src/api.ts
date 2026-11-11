@@ -158,7 +158,7 @@ export function createApp() {
       user,
       signupOpen: signupOpen(),
       mock: config.mock,
-      features: { auphonic: Boolean(config.auphonicApiKey), transcription: config.sttProvider },
+      features: { auphonic: Boolean(config.auphonicApiKey), transcription: config.sttProvider, textAi: config.llmConfigured },
     });
   });
 
