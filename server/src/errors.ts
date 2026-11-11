@@ -40,6 +40,9 @@ export function apiError(service: Service, status: number, body: string, envVar?
     return new UserError(`Acabaram os créditos ${service.article === 'a' ? 'na' : 'no'} ${service.name}. Recarregue a conta para continuar.`);
   }
   if (status === 429) return new UserError(`${subject} está limitando as requisições. Tente de novo em alguns minutos.`);
+  if (status === 503 || status === 529 || /high demand|overloaded|unavailable/.test(text)) {
+    return new UserError(`${subject} está sobrecarregado agora; o Clyps tentou de novo por cerca de 1 minuto sem sucesso.${detail}`);
+  }
   console.error(`[${service.name}] HTTP ${status}: ${body.slice(0, 500)}`);
   return new UserError(`${subject} respondeu com erro (${status}). Tente de novo.${detail}`);
 }

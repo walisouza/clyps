@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { LLM_GATEWAY, LLM_GENERIC, UserError, apiError } from './errors.js';
+import { LLM_GATEWAY, LLM_GENERIC, UserError, apiError, sleep } from './errors.js';
 
 type Message = { role: 'system' | 'user'; content: string };
 type Variant = { label: string; model: string; build: (system: string, user: string) => Record<string, unknown> };
@@ -9,6 +9,11 @@ const withSystem = (system: string, user: string): Message[] => [
   { role: 'user', content: user },
 ];
 const userOnly = (system: string, user: string): Message[] => [{ role: 'user', content: `${system}\n\n---\n\n${user}` }];
+
+/** Modelos reserva para serviços no padrão OpenAI (ex.: LLM_FALLBACK_MODELS=gemini-2.5-flash). */
+function genericFallbackModels(): string[] {
+  return (process.env.LLM_FALLBACK_MODELS ?? '').split(',').map((m) => m.trim()).filter((m) => m && m !== config.llmModel);
+}
 
 /** Modelos de reserva no Gateway, caso o configurado não esteja liberado na conta. */
 function fallbackModels(): string[] {
@@ -42,7 +47,31 @@ function contentOf(json: any): string {
   return typeof c === 'string' ? c : '';
 }
 
+/** Esperas entre tentativas quando o serviço está sobrecarregado ou instável (429/5xx). */
+const RETRY_DELAYS_MS = (process.env.LLM_RETRY_DELAYS ?? '5000,15000,30000')
+  .split(',')
+  .map(Number)
+  .filter((n) => Number.isFinite(n) && n >= 0);
+const TRANSIENT = new Set([429, 500, 502, 503, 504, 529]);
+
+/** Envia e, se a resposta for de sobrecarga/instabilidade, espera e tenta de novo. */
 async function post(body: Record<string, unknown>, gateway: boolean): Promise<Response> {
+  let res: Response | null = null;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      res = await postOnce(body, gateway);
+      if (!TRANSIENT.has(res.status)) return res;
+      console.warn(`[LLM] ${body.model}: HTTP ${res.status} (tentativa ${attempt + 1}); tentando de novo.`);
+    } catch (err) {
+      if (attempt === RETRY_DELAYS_MS.length) throw err;
+      console.warn(`[LLM] ${body.model}: sem conexão (tentativa ${attempt + 1}); tentando de novo.`);
+    }
+    if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt]);
+  }
+  return res!;
+}
+
+async function postOnce(body: Record<string, unknown>, gateway: boolean): Promise<Response> {
   return fetch(`${config.llmBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -59,12 +88,23 @@ export async function chat(system: string, user: string): Promise<string> {
   const gateway = config.llmViaAssemblyAI;
 
   if (!gateway) {
-    const base = { model: config.llmModel, messages: withSystem(system, user) };
-    let res = await post({ ...base, response_format: { type: 'json_object' } }, false);
-    // Alguns provedores compatíveis não aceitam response_format: o Clyps já extrai o JSON do texto.
-    if (res.status === 400) res = await post(base, false);
-    if (!res.ok) throw apiError(LLM_GENERIC, res.status, await res.text(), 'LLM_API_KEY');
-    return contentOf(await res.json());
+    // Modelo principal e, se ele seguir sobrecarregado, os reservas de LLM_FALLBACK_MODELS.
+    const models = [config.llmModel, ...genericFallbackModels()];
+    let failure: { status: number; body: string } | null = null;
+    for (const model of models) {
+      const base = { model, messages: withSystem(system, user) };
+      let res = await post({ ...base, response_format: { type: 'json_object' } }, false);
+      // Alguns provedores compatíveis não aceitam response_format: o Clyps já extrai o JSON do texto.
+      if (res.status === 400) res = await post(base, false);
+      if (res.ok) {
+        if (model !== config.llmModel) console.log(`[LLM] usando o modelo reserva ${model}.`);
+        return contentOf(await res.json());
+      }
+      failure = { status: res.status, body: await res.text() };
+      // Só troca de modelo quando o problema é do modelo (sobrecarga ou inexistente), não da chave.
+      if (!TRANSIENT.has(res.status) && res.status !== 404) break;
+    }
+    throw apiError(LLM_GENERIC, failure!.status, failure!.body, 'LLM_API_KEY');
   }
 
   const variants = gatewayVariants();
