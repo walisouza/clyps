@@ -64,7 +64,9 @@ export const config = {
     return !process.env.LLM_API_KEY && Boolean(this.assemblyaiApiKey);
   },
   get llmBaseUrl() {
-    if (process.env.LLM_BASE_URL) return process.env.LLM_BASE_URL;
+    const custom = process.env.LLM_BASE_URL;
+    // Um .env antigo traz LLM_BASE_URL da OpenAI; com a chave da AssemblyAI ele é ignorado.
+    if (custom && !(this.llmViaAssemblyAI && /api\.openai\.com/.test(custom))) return custom;
     return this.llmViaAssemblyAI ? 'https://llm-gateway.assemblyai.com/v1' : 'https://api.openai.com/v1';
   },
   get llmApiKey() {
