@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { clipAudioFilter } from './audio.js';
+import { clipAudioFilter, passthroughAudioFilter } from './audio.js';
 import { buildAss } from './captions.js';
 import { config } from './config.js';
-import { outputSize, renderClip, type Probe } from './media.js';
+import { audioChannels, outputSize, renderClip, type Probe } from './media.js';
 import type { JobOptions, Selection, Word } from './types.js';
 
 export type RenderedClip = { file: string; transcript: string; selection: Selection };
@@ -52,7 +52,10 @@ export async function renderSelection(
     layout: opts.aspect === 'original' ? 'fill' : opts.layout,
     assPath,
     hasAudio: info.hasAudio,
-    audioFilter: audioFile ? undefined : clipAudioFilter(opts.audioEnhance),
+    // Áudio do Auphonic já vem tratado: só padroniza os canais.
+    audioFilter: audioFile
+      ? passthroughAudioFilter(await audioChannels(audioFile))
+      : clipAudioFilter(opts.audioEnhance, info.audioChannels),
     audioFile,
   });
 

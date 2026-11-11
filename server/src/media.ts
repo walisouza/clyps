@@ -3,7 +3,15 @@ import path from 'node:path';
 import { run } from './exec.js';
 import type { Aspect, Layout } from './types.js';
 
-export type Probe = { duration: number; width: number; height: number; hasAudio: boolean };
+/** Número de canais do primeiro áudio de um arquivo (serve para arquivos só de áudio). */
+export async function audioChannels(file: string): Promise<number> {
+  const { stdout } = await run('ffprobe', [
+    '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=channels', '-of', 'csv=p=0', file,
+  ]);
+  return Number(stdout.trim()) || 2;
+}
+
+export type Probe = { duration: number; width: number; height: number; hasAudio: boolean; audioChannels: number };
 
 export async function probe(file: string): Promise<Probe> {
   const { stdout } = await run('ffprobe', [
@@ -17,6 +25,7 @@ export async function probe(file: string): Promise<Probe> {
     width: Number(video.width),
     height: Number(video.height),
     hasAudio: Boolean(info.streams?.some((s: any) => s.codec_type === 'audio')),
+    audioChannels: Number(info.streams?.find((s: any) => s.codec_type === 'audio')?.channels) || 2,
   };
 }
 
@@ -121,7 +130,7 @@ export type RenderInput = {
   layout: Layout;
   assPath?: string;
   hasAudio: boolean;
-  /** Cadeia de filtros de áudio (tratamento de voz). */
+  /** Cadeia de filtros de áudio (tratamento de voz). Aplicada ao áudio tratado (audioFile) quando ele existe. */
   audioFilter?: string;
   /** Áudio já tratado (Auphonic), com o mesmo início e duração do trecho. Substitui o áudio original. */
   audioFile?: string;
@@ -142,7 +151,8 @@ export async function renderClip(r: RenderInput): Promise<void> {
     chain.push(`[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1[base]`);
   }
   chain.push(r.assPath ? `[base]ass='${escapeFilterPath(r.assPath)}'[v]` : `[base]null[v]`);
-  if (r.hasAudio && !r.audioFile && r.audioFilter) chain.push(`[0:a:0]${r.audioFilter}[a]`);
+  // O áudio sempre passa por uma cadeia que termina em estéreo 48 kHz explícito (ver audio.ts).
+  if (r.hasAudio && r.audioFilter) chain.push(`[${r.audioFile ? '1:a:0' : '0:a:0'}]${r.audioFilter}[a]`);
 
   const args = [
     '-y', '-v', 'error',
@@ -154,8 +164,8 @@ export async function renderClip(r: RenderInput): Promise<void> {
     '-map', '[v]',
   ];
   if (r.hasAudio) {
-    const audioMap = r.audioFile ? '1:a:0' : r.audioFilter ? '[a]' : '0:a:0';
-    args.push('-map', audioMap, '-c:a', 'aac', '-b:a', '160k', '-ar', '48000');
+    const audioMap = r.audioFilter ? '[a]' : r.audioFile ? '1:a:0' : '0:a:0';
+    args.push('-map', audioMap, '-c:a', 'aac', '-b:a', '160k');
   }
   args.push(
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
