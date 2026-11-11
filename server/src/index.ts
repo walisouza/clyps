@@ -1,6 +1,7 @@
 import { createApp } from './api.js';
 import { config } from './config.js';
-import { claimNextJob, db, recoverInterruptedJobs } from './db.js';
+import { rm } from 'node:fs/promises';
+import { claimNextJob, db, recoverInterruptedJobs, staleFailedUploads, updateJob } from './db.js';
 import { processJob } from './pipeline.js';
 
 let stopping = false;
@@ -27,6 +28,16 @@ async function workerLoop() {
 
 db();
 recoverInterruptedJobs();
+
+const KEEP_FAILED_UPLOAD_DAYS = 7;
+async function cleanupFailedUploads() {
+  for (const j of staleFailedUploads(KEEP_FAILED_UPLOAD_DAYS)) {
+    await rm(j.upload_path, { force: true }).catch(() => {});
+    updateJob(j.id, { upload_path: null });
+  }
+}
+cleanupFailedUploads();
+setInterval(cleanupFailedUploads, 6 * 3600 * 1000).unref();
 
 const server = createApp().listen(config.port, () => {
   console.log(`Clyps no ar na porta ${config.port}${config.mock ? ' (MOCK_AI: transcrição e seleção simuladas)' : ''}.`);

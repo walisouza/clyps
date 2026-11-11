@@ -17,6 +17,10 @@ export default function JobDetail() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [modal, setModal] = useState<{ clip: Clip; downloading: boolean } | null>(null);
+  // Muda a cada nova tentativa, para reiniciar o acompanhamento do progresso.
+  const [reload, setReload] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -39,7 +43,21 @@ export default function JobDetail() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [id]);
+  }, [id, reload]);
+
+  async function retry() {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      await api.retryJob(id!);
+      setClips([]);
+      setReload((n) => n + 1);
+    } catch (e) {
+      setRetryError(e instanceof Error ? e.message : 'Não foi possível tentar de novo.');
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   async function remove() {
     try {
@@ -91,9 +109,16 @@ export default function JobDetail() {
       {job.status === 'failed' && (
         <section className="card">
           <p className="error">{job.error || 'O processamento falhou.'}</p>
-          <Link to="/" className="link">
-            Tentar com outro vídeo
-          </Link>
+          {retryError && <p className="error small">{retryError}</p>}
+          <div className="row">
+            <button type="button" className="primary" onClick={retry} disabled={retrying}>
+              {retrying ? 'Recolocando na fila…' : 'Tentar novamente'}
+            </button>
+            <Link to="/" className="link">
+              Usar outro vídeo
+            </Link>
+          </div>
+          <p className="muted small">Tenta de novo o mesmo vídeo, com as mesmas opções.</p>
         </section>
       )}
 

@@ -26,6 +26,7 @@ export const api = {
   listJobs: () => request<{ jobs: Job[] }>('/jobs'),
   getJob: (id: string) => request<{ job: Job; clips: Clip[] }>(`/jobs/${id}`),
   deleteJob: (id: string) => request<{ ok: true }>(`/jobs/${id}`, { method: 'DELETE' }),
+  retryJob: (id: string) => post<{ ok: true }>(`/jobs/${id}/retry`, {}),
   createJob: (
     source: { sourceType: 'url'; url: string } | { sourceType: 'upload'; uploadId: string; title: string },
     options: JobOptions,

@@ -137,6 +137,29 @@ export function updateJob(id: string, patch: Partial<JobRow>): void {
 }
 
 /** Jobs que estavam em andamento quando o servidor caiu voltam para a fila (até 3 tentativas). */
+/** Recoloca um corte que falhou na fila, do zero. Devolve false se ele não estiver em estado de nova tentativa. */
+export function requeueJob(id: string, userId: string): boolean {
+  const r = db()
+    .prepare(
+      `update jobs set status = 'queued', stage = null, progress = 0, error = null, notice = null,
+         attempts = 0, completed_at = null
+       where id = ? and user_id = ? and status in ('failed', 'cancelled')`,
+    )
+    .run(id, userId);
+  return r.changes > 0;
+}
+
+/** Originais guardados para nova tentativa somem depois de alguns dias, para não lotar o disco. */
+export function staleFailedUploads(days: number): { id: string; upload_path: string }[] {
+  return db()
+    .prepare(
+      `select id, upload_path from jobs
+       where status in ('failed', 'cancelled') and upload_path is not null
+         and completed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`,
+    )
+    .all(`-${days} days`) as { id: string; upload_path: string }[];
+}
+
 export function recoverInterruptedJobs(): void {
   db().prepare(
     `update jobs set status = 'failed', error = 'Processamento interrompido após 3 tentativas.',

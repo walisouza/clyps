@@ -11,7 +11,7 @@ import {
 } from './auth.js';
 import { config } from './config.js';
 import { MAX_COOKIES_BYTES, cookiesPath, cookiesStatus, looksLikeNetscapeCookies, removeCookies, saveCookies } from './cookies.js';
-import { db, type ClipRow, type JobRow } from './db.js';
+import { db, requeueJob, type ClipRow, type JobRow } from './db.js';
 import { ytInfo, type VideoInfo } from './media.js';
 import { clipsDir } from './pipeline.js';
 import { normalizeOptions } from './types.js';
@@ -319,6 +319,22 @@ export function createApp() {
     if (!job) return void res.status(404).json({ error: 'Corte não encontrado.' });
     const clips = db().prepare('select * from clips where job_id = ? order by idx').all(job.id) as ClipRow[];
     res.json({ job: jobJson(job), clips: job.status === 'completed' ? clips.map(clipJson) : [] });
+  });
+
+  api.post('/jobs/:id/retry', requireAuth, (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const job = db().prepare('select * from jobs where id = ? and user_id = ?').get(req.params.id, user.id) as JobRow | undefined;
+    if (!job) return void res.status(404).json({ error: 'Corte não encontrado.' });
+    if (job.status !== 'failed' && job.status !== 'cancelled') {
+      return void res.status(409).json({ error: 'Só dá para tentar de novo um corte que falhou.' });
+    }
+    if (job.source_type === 'upload' && (!job.upload_path || !existsSync(job.upload_path))) {
+      return void res.status(409).json({
+        error: 'O arquivo original deste corte não está mais no servidor. Crie um corte novo enviando o vídeo de novo.',
+      });
+    }
+    requeueJob(job.id, user.id);
+    res.json({ ok: true });
   });
 
   api.delete('/jobs/:id', requireAuth, async (req, res) => {

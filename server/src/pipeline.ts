@@ -259,8 +259,9 @@ export async function processJob(job: JobRow): Promise<void> {
     updateJob(job.id, { status: 'failed', error: message, completed_at: nowIso() });
   } finally {
     await rm(tmp, { recursive: true, force: true });
-    // O vídeo original enviado não é mais necessário depois do processamento.
-    if (job.upload_path) {
+    // O vídeo enviado só é apagado quando o corte dá certo; se falhar, fica para "Tentar novamente".
+    const finalStatus = (db().prepare('select status from jobs where id = ?').get(job.id) as { status?: string } | undefined)?.status;
+    if (job.upload_path && finalStatus === 'completed') {
       await rm(job.upload_path, { force: true });
       updateJob(job.id, { upload_path: null });
     }
