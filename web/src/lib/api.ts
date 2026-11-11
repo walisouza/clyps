@@ -1,4 +1,4 @@
-import type { Clip, Job, JobOptions } from './types';
+import type { Clip, Job, JobOptions, VideoPreview } from './types';
 
 export type User = { id: string; email: string; credits: number };
 
@@ -17,7 +17,8 @@ const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
-  me: () => request<{ user: User | null; signupOpen: boolean }>('/me'),
+  me: () => request<{ user: User | null; signupOpen: boolean; mock: boolean }>('/me'),
+  preview: (url: string) => request<VideoPreview>(`/preview?url=${encodeURIComponent(url)}`),
   login: (email: string, password: string) => post<{ user: User }>('/login', { email, password }),
   signup: (email: string, password: string) => post<{ user: User }>('/signup', { email, password }),
   logout: () => post<{ ok: true }>('/logout', {}),

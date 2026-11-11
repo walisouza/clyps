@@ -57,4 +57,6 @@ export const config = {
     return process.env.ENFORCE_CREDITS === '1';
   },
   captionFont: process.env.CAPTION_FONT || 'Inter',
+  /** Modelo RNNoise usado no tratamento de voz "forte" (ausente = etapa pulada). */
+  rnnoiseModel: process.env.RNNOISE_MODEL || '/usr/share/clyps/std.rnnn',
 };

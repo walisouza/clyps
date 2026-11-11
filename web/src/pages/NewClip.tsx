@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CookiesPanel from '../components/CookiesPanel';
+import LinkPreview from '../components/LinkPreview';
 import { api } from '../lib/api';
 import type { JobOptions } from '../lib/types';
 
@@ -13,6 +14,7 @@ const DEFAULTS: JobOptions = {
   captionStyle: 'karaoke',
   captionPosition: 'bottom',
   highlightColor: '#FFE14D',
+  audioEnhance: 'light',
 };
 
 const MAX_UPLOAD_BYTES = 4 * 1024 ** 3;
@@ -55,6 +57,7 @@ export default function NewClip() {
   const [opts, setOpts] = useState<JobOptions>(DEFAULTS);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tooLong, setTooLong] = useState(false);
 
   const set = <K extends keyof JobOptions>(key: K, value: JobOptions[K]) => setOpts((o) => ({ ...o, [key]: value }));
 
@@ -66,6 +69,7 @@ export default function NewClip() {
       let created: { id: string };
       if (source === 'url') {
         if (!/^https?:\/\/\S+$/i.test(url.trim())) throw new Error('Cole um link válido (começando com http).');
+        if (tooLong) throw new Error('Esse vídeo passa do limite de duração.');
         setBusy('Criando o corte…');
         created = await api.createJob({ sourceType: 'url', url: url.trim() }, opts);
       } else {
@@ -106,19 +110,21 @@ export default function NewClip() {
           ]}
         />
         {source === 'url' ? (
-          <label className="field">
-            Link do vídeo
+          <div className="field">
+            <label htmlFor="video-url">Link do vídeo</label>
             <input
+              id="video-url"
               type="url"
               placeholder="YouTube, Facebook, Instagram, TikTok, Twitch…"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
+            <LinkPreview url={url} onTooLong={setTooLong} />
             <small className="muted">
               Qualquer link público de vídeo. Para vídeos privados ou que exigem login, envie seus cookies abaixo.
             </small>
             <CookiesPanel />
-          </label>
+          </div>
         ) : (
           <label className="field">
             Arquivo (MP4, MOV ou WebM, até 4 GB)
@@ -225,6 +231,26 @@ export default function NewClip() {
               </label>
             )}
           </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Áudio</h2>
+        <Segmented
+          label="Tratamento de voz"
+          value={opts.audioEnhance}
+          onChange={(v) => set('audioEnhance', v)}
+          options={[
+            { value: 'off', label: 'Original', hint: 'sem alteração' },
+            { value: 'light', label: 'Leve', hint: 'nivela volume, tira chiado' },
+            { value: 'strong', label: 'Forte', hint: 'celular, eco e ruído' },
+          ]}
+        />
+        {opts.audioEnhance === 'strong' && (
+          <p className="muted small">
+            Reduz ruído de fundo e boa parte do eco, realça a voz e nivela o volume. Em salas com eco muito forte a
+            melhora é parcial.
+          </p>
         )}
       </section>
 

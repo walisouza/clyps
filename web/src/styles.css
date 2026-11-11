@@ -140,6 +140,39 @@ button.primary.big { font-size: 1.15rem; padding: 15px 20px; }
 details summary { cursor: pointer; font-weight: 600; font-size: 0.88rem; }
 details p { margin-top: 6px; }
 
+/* Aviso de modo de teste */
+.mock-banner {
+  background: #ffe9a8; border-bottom: 2px solid var(--ink);
+  padding: 10px clamp(16px, 4vw, 40px); font-size: 0.9rem;
+}
+.mock-banner code { background: #fff5d1; }
+
+/* Prévia do link */
+.preview {
+  display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: center;
+  border: 1.5px solid var(--ink); border-radius: 12px; padding: 10px; background: #fff;
+}
+.preview-thumb { width: 160px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: #ebe6d9; display: block; }
+.preview-thumb-empty { display: grid; place-content: center; }
+.preview-body { display: grid; gap: 4px; min-width: 0; }
+.preview-title { font-weight: 600; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.preview-error { color: var(--err); font-weight: 600; }
+.skeleton { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+/* Clipe: ações e energia */
+.clip-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.energy { border: 1.5px solid var(--ink); border-radius: 6px; padding: 1px 6px; background: #fff3c4; white-space: nowrap; }
+.score { white-space: nowrap; }
+
+/* Popup */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50; background: rgba(20, 19, 15, 0.55);
+  display: grid; place-items: center; padding: 16px;
+}
+.modal { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
 /* Painel de cookies */
 .cookies-panel { display: grid; gap: 10px; padding: 10px 12px; border: 1.5px dashed var(--line); border-radius: 10px; background: #faf7ef; }
 .cookies-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -154,6 +187,8 @@ details p { margin-top: 6px; }
   .account .muted { display: none; }
   .job-row { grid-template-columns: 1fr auto; }
   .job-row .mono { display: none; }
+  .preview { grid-template-columns: 112px 1fr; gap: 10px; }
+  .preview-thumb { width: 112px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

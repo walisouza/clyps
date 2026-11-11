@@ -5,6 +5,7 @@ export type Layout = 'fill' | 'blur';
 export type CaptionStyle = 'karaoke' | 'bold' | 'minimal' | 'none';
 export type CaptionPosition = 'bottom' | 'center' | 'top';
 export type ClipLength = 'short' | 'medium' | 'long';
+export type AudioEnhance = 'off' | 'light' | 'strong';
 
 export type JobOptions = {
   language: 'pt' | 'en' | 'es';
@@ -15,6 +16,7 @@ export type JobOptions = {
   captionStyle: CaptionStyle;
   captionPosition: CaptionPosition;
   highlightColor: string;
+  audioEnhance: AudioEnhance;
   context?: string;
 };
 
@@ -24,6 +26,10 @@ export type Selection = {
   title: string;
   reason: string;
   score: number;
+  /** Texto sugerido para o post nas redes sociais. */
+  post?: string;
+  /** Energia do trecho (0 a 100), calculada pelo áudio. */
+  energy?: number;
 };
 
 export const LENGTH_RANGES: Record<ClipLength, [number, number]> = {
@@ -46,6 +52,7 @@ export function normalizeOptions(raw: unknown): JobOptions {
     captionStyle: pick(o.captionStyle, ['karaoke', 'bold', 'minimal', 'none'] as const, 'karaoke'),
     captionPosition: pick(o.captionPosition, ['bottom', 'center', 'top'] as const, 'bottom'),
     highlightColor: /^#[0-9a-fA-F]{6}$/.test(String(o.highlightColor)) ? String(o.highlightColor) : '#FFE14D',
+    audioEnhance: pick(o.audioEnhance, ['off', 'light', 'strong'] as const, 'light'),
     context: typeof o.context === 'string' && o.context.trim() ? o.context.trim().slice(0, 1000) : undefined,
   };
 }

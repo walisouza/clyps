@@ -14,7 +14,7 @@ export function Logo() {
   );
 }
 
-type Session = { user: User | null; signupOpen: boolean };
+type Session = { user: User | null; signupOpen: boolean; mock?: boolean };
 
 export default function App() {
   const [session, setSession] = useState<Session | undefined>(undefined);
@@ -27,13 +27,13 @@ export default function App() {
   if (error) return <main className="center-screen error">Não foi possível falar com o servidor.</main>;
   if (!session) return <main className="center-screen muted">Carregando…</main>;
   if (!session.user) {
-    return <Login signupOpen={session.signupOpen} onAuth={(user) => setSession({ user, signupOpen: false })} />;
+    return <Login signupOpen={session.signupOpen} onAuth={(user) => setSession({ ...session, user, signupOpen: false })} />;
   }
 
   const user = session.user;
   async function logout() {
     await api.logout().catch(() => {});
-    setSession({ user: null, signupOpen: false });
+    setSession({ ...session, user: null, signupOpen: false });
   }
 
   return (
@@ -53,6 +53,13 @@ export default function App() {
           </button>
         </div>
       </header>
+      {session.mock && (
+        <div className="mock-banner" role="status">
+          <strong>Modo de teste.</strong> A transcrição e a escolha dos trechos são simuladas, por isso a legenda mostra
+          sempre a mesma frase. Para cortes reais, configure as chaves de IA no <code>.env</code> da VPS e remova{' '}
+          <code>MOCK_AI=1</code>.
+        </div>
+      )}
       <main className="page">
         <Routes>
           <Route path="/" element={<NewClip />} />

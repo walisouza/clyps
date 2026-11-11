@@ -97,9 +97,17 @@ export type ClipRow = {
   transcript: string | null;
   file_path: string;
   aspect: string;
+  post_caption: string | null;
+  energy: number | null;
 };
 
 let conn: Database.Database | null = null;
+
+/** Migração simples: adiciona a coluna se o banco foi criado por uma versão anterior. */
+function ensureColumn(d: Database.Database, table: string, column: string, type: string): void {
+  const cols = d.prepare(`pragma table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) d.exec(`alter table ${table} add column ${column} ${type}`);
+}
 
 export function db(): Database.Database {
   if (!conn) {
@@ -108,6 +116,8 @@ export function db(): Database.Database {
     conn.pragma('journal_mode = WAL');
     conn.pragma('foreign_keys = ON');
     conn.exec(SCHEMA);
+    ensureColumn(conn, 'clips', 'post_caption', 'text');
+    ensureColumn(conn, 'clips', 'energy', 'integer');
   }
   return conn;
 }

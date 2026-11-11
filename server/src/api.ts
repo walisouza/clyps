@@ -10,8 +10,9 @@ import {
   userFromToken, type User,
 } from './auth.js';
 import { config } from './config.js';
-import { MAX_COOKIES_BYTES, cookiesStatus, looksLikeNetscapeCookies, removeCookies, saveCookies } from './cookies.js';
+import { MAX_COOKIES_BYTES, cookiesPath, cookiesStatus, looksLikeNetscapeCookies, removeCookies, saveCookies } from './cookies.js';
 import { db, type ClipRow, type JobRow } from './db.js';
+import { ytInfo, type VideoInfo } from './media.js';
 import { clipsDir } from './pipeline.js';
 import { normalizeOptions } from './types.js';
 
@@ -93,6 +94,11 @@ function isPublicHttpUrl(raw: string): boolean {
   return true;
 }
 
+const PREVIEW_TTL_MS = 10 * 60 * 1000;
+const MAX_PARALLEL_PREVIEWS = 3;
+const previewCache = new Map<string, { at: number; data: VideoInfo & { tooLong: boolean } }>();
+let previewsRunning = 0;
+
 const signupOpen = () => config.allowSignup || userCount() === 0;
 
 function jobJson(j: JobRow) {
@@ -122,6 +128,8 @@ function clipJson(c: ClipRow) {
     end_ms: c.end_ms,
     transcript: c.transcript,
     aspect: c.aspect,
+    post_caption: c.post_caption,
+    energy: c.energy,
   };
 }
 
@@ -145,7 +153,7 @@ export function createApp() {
   // ── Conta ──
   api.get('/me', (req, res) => {
     const user = userFromToken(readCookie(req, SESSION_COOKIE));
-    res.json({ user, signupOpen: signupOpen() });
+    res.json({ user, signupOpen: signupOpen(), mock: config.mock });
   });
 
   api.post('/signup', rateLimit, (req, res) => {
@@ -172,6 +180,36 @@ export function createApp() {
     destroySession(readCookie(req, SESSION_COOKIE));
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.json({ ok: true });
+  });
+
+  // ── Prévia do link (título, miniatura, duração) antes de gerar ──
+  api.get('/preview', requireAuth, async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const url = String(req.query.url ?? '').trim();
+    if (url.length > 2000 || !isPublicHttpUrl(url)) return void res.status(400).json({ error: 'Link inválido.' });
+
+    const key = `${user.id}|${url}`; // por usuário: os cookies de cada um mudam o resultado
+    const hit = previewCache.get(key);
+    if (hit && Date.now() - hit.at < PREVIEW_TTL_MS) return void res.json(hit.data);
+    if (previewsRunning >= MAX_PARALLEL_PREVIEWS) {
+      return void res.status(429).json({ error: 'Muitas buscas ao mesmo tempo. Tente de novo em instantes.' });
+    }
+
+    previewsRunning++;
+    try {
+      const file = cookiesPath(user.id);
+      const info = await ytInfo(url, existsSync(file) ? file : undefined, 45_000);
+      const data = { ...info, tooLong: info.duration > config.maxDurationSeconds };
+      previewCache.set(key, { at: Date.now(), data });
+      if (previewCache.size > 300) previewCache.delete(previewCache.keys().next().value!);
+      res.json(data);
+    } catch {
+      res.status(422).json({
+        error: 'Não encontramos um vídeo nesse link. Confira se ele é público ou envie os cookies do navegador.',
+      });
+    } finally {
+      previewsRunning--;
+    }
   });
 
   // ── Cookies do yt-dlp (opcional, para links que exigem login) ──

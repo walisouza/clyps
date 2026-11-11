@@ -24,14 +24,31 @@ export async function probe(file: string): Promise<Probe> {
 const withCookies = (args: string[], cookiesPath?: string) =>
   cookiesPath ? ['--cookies', cookiesPath, ...args] : args;
 
-export async function ytInfo(url: string, cookiesPath?: string): Promise<{ title: string; duration: number }> {
+export type VideoInfo = {
+  title: string;
+  duration: number;
+  thumbnail: string | null;
+  uploader: string | null;
+  site: string | null;
+};
+
+const httpUrl = (v: unknown) => (typeof v === 'string' && /^https?:\/\//i.test(v) ? v : null);
+
+export async function ytInfo(url: string, cookiesPath?: string, timeoutMs = 120_000): Promise<VideoInfo> {
   const { stdout } = await run(
     'yt-dlp',
-    withCookies(['--dump-single-json', '--no-playlist', '--no-warnings', '--', url], cookiesPath),
-    120_000,
+    withCookies(['--dump-single-json', '--no-playlist', '--no-warnings', '--socket-timeout', '20', '--', url], cookiesPath),
+    timeoutMs,
   );
   const j = JSON.parse(stdout);
-  return { title: String(j.title ?? 'Vídeo'), duration: Number(j.duration ?? 0) };
+  const thumbs = Array.isArray(j.thumbnails) ? j.thumbnails : [];
+  return {
+    title: String(j.title ?? 'Vídeo').slice(0, 300),
+    duration: Number(j.duration ?? 0),
+    thumbnail: httpUrl(j.thumbnail) ?? httpUrl(thumbs[thumbs.length - 1]?.url),
+    uploader: typeof j.uploader === 'string' ? j.uploader.slice(0, 120) : typeof j.channel === 'string' ? j.channel.slice(0, 120) : null,
+    site: typeof j.extractor_key === 'string' ? j.extractor_key : null,
+  };
 }
 
 export async function ytDownload(url: string, out: string, cookiesPath?: string): Promise<void> {
@@ -53,10 +70,10 @@ export async function ytDownload(url: string, out: string, cookiesPath?: string)
 export const SEGMENT_SECONDS = 1200;
 
 /** Extrai o áudio em MP3 mono leve, em partes de 20 min (limite de upload das APIs de transcrição). */
-export async function extractAudioSegments(file: string, dir: string): Promise<string[]> {
+export async function extractAudioSegments(file: string, dir: string, audioFilter?: string): Promise<string[]> {
   await run('ffmpeg', [
     '-y', '-v', 'error', '-i', file,
-    '-vn', '-ac', '1', '-ar', '16000', '-b:a', '32k',
+    '-vn', ...(audioFilter ? ['-af', audioFilter] : []), '-ac', '1', '-ar', '16000', '-b:a', '32k',
     '-f', 'segment', '-segment_time', String(SEGMENT_SECONDS), '-reset_timestamps', '1',
     path.join(dir, 'audio-%03d.mp3'),
   ]);
@@ -74,7 +91,7 @@ export function outputSize(aspect: Aspect, src: { width: number; height: number 
   return { w: even(src.width * scale), h: even(src.height * scale) };
 }
 
-const escapeFilterPath = (p: string) => p.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
+export const escapeFilterPath = (p: string) => p.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
 
 export type RenderInput = {
   src: string;
@@ -85,6 +102,8 @@ export type RenderInput = {
   layout: Layout;
   assPath?: string;
   hasAudio: boolean;
+  /** Cadeia de filtros de áudio (tratamento de voz). */
+  audioFilter?: string;
 };
 
 /** Corta o trecho, reenquadra para o formato pedido e queima a legenda. */
@@ -102,6 +121,7 @@ export async function renderClip(r: RenderInput): Promise<void> {
     chain.push(`[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1[base]`);
   }
   chain.push(r.assPath ? `[base]ass='${escapeFilterPath(r.assPath)}'[v]` : `[base]null[v]`);
+  if (r.hasAudio && r.audioFilter) chain.push(`[0:a:0]${r.audioFilter}[a]`);
 
   const args = [
     '-y', '-v', 'error',
@@ -109,7 +129,7 @@ export async function renderClip(r: RenderInput): Promise<void> {
     '-filter_complex', chain.join(';'),
     '-map', '[v]',
   ];
-  if (r.hasAudio) args.push('-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k');
+  if (r.hasAudio) args.push('-map', r.audioFilter ? '[a]' : '0:a:0', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000');
   args.push(
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',

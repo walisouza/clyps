@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import PostCaptionModal from '../components/PostCaptionModal';
 import { api } from '../lib/api';
 import { STAGE_LABEL, STATUS_LABEL, formatDuration, type Clip, type Job } from '../lib/types';
+
+/** Para clipes antigos, gerados antes da legenda automática. */
+function fallbackCaption(c: Clip): string {
+  return `${c.title}\n\n#cortes #shorts #reels`;
+}
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -10,6 +16,7 @@ export default function JobDetail() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [modal, setModal] = useState<{ clip: Clip; downloading: boolean } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -91,7 +98,12 @@ export default function JobDetail() {
               <video src={api.clipUrl(c.id)} controls preload="metadata" playsInline />
               <div className="clip-body">
                 <div className="clip-meta mono">
-                  <span className="score">{c.score ?? '—'}</span>
+                  <span className="score" title="Nota final (IA + energia)">{c.score ?? '—'}</span>
+                  {c.energy !== null && (
+                    <span className="energy" title="Energia do áudio no trecho">
+                      ⚡ {c.energy}
+                    </span>
+                  )}
                   <span className="muted">
                     {formatDuration(c.start_ms / 1000)} → {formatDuration(c.end_ms / 1000)} ·{' '}
                     {Math.round((c.end_ms - c.start_ms) / 1000)}s
@@ -105,13 +117,31 @@ export default function JobDetail() {
                     <p className="small">{c.transcript}</p>
                   </details>
                 )}
-                <a className="primary" href={api.clipUrl(c.id, true)}>
-                  Baixar MP4
-                </a>
+                <div className="clip-actions">
+                  <a
+                    className="primary"
+                    href={api.clipUrl(c.id, true)}
+                    onClick={() => setModal({ clip: c, downloading: true })}
+                  >
+                    Baixar MP4
+                  </a>
+                  <button type="button" className="link small" onClick={() => setModal({ clip: c, downloading: false })}>
+                    Legenda do post
+                  </button>
+                </div>
               </div>
             </article>
           ))}
         </div>
+      )}
+
+      {modal && (
+        <PostCaptionModal
+          title={modal.clip.title}
+          caption={modal.clip.post_caption || fallbackCaption(modal.clip)}
+          downloading={modal.downloading}
+          onClose={() => setModal(null)}
+        />
       )}
 
       {job.status !== 'processing' && (

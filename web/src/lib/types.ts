@@ -9,6 +9,7 @@ export type JobOptions = {
   captionStyle: 'karaoke' | 'bold' | 'minimal' | 'none';
   captionPosition: 'bottom' | 'center' | 'top';
   highlightColor: string;
+  audioEnhance: 'off' | 'light' | 'strong';
   context?: string;
 };
 
@@ -36,6 +37,17 @@ export type Clip = {
   end_ms: number;
   transcript: string | null;
   aspect: string;
+  post_caption: string | null;
+  energy: number | null;
+};
+
+export type VideoPreview = {
+  title: string;
+  duration: number;
+  thumbnail: string | null;
+  uploader: string | null;
+  site: string | null;
+  tooLong: boolean;
 };
 
 export const STATUS_LABEL: Record<JobStatus, string> = {
@@ -49,6 +61,7 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
 export const STAGE_LABEL: Record<string, string> = {
   starting: 'Iniciando',
   downloading: 'Baixando o vídeo',
+  analyzing: 'Medindo a energia do áudio',
   transcribing: 'Transcrevendo a fala',
   selecting: 'Escolhendo os melhores trechos',
   rendering: 'Renderizando os clipes',

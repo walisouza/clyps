@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { clipAudioFilter } from './audio.js';
 import { buildAss } from './captions.js';
 import { config } from './config.js';
 import { outputSize, renderClip, type Probe } from './media.js';
@@ -49,6 +50,7 @@ export async function renderSelection(
     layout: opts.aspect === 'original' ? 'fill' : opts.layout,
     assPath,
     hasAudio: info.hasAudio,
+    audioFilter: clipAudioFilter(opts.audioEnhance),
   });
 
   return { file, transcript: clipWords.map((w) => w.word.trim()).join(' '), selection };

@@ -3,9 +3,11 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { sttAudioFilter } from './audio.js';
 import { config } from './config.js';
 import { cookiesPath } from './cookies.js';
 import { adjustCredits, db, updateJob, type JobRow } from './db.js';
+import { measureEnergy, normalizeEnergy } from './energy.js';
 import { extractAudioSegments, probe, ytDownload, ytInfo } from './media.js';
 import { renderSelection } from './render.js';
 import { mockSelect, selectClips } from './select.js';
@@ -74,24 +76,34 @@ export async function processJob(job: JobRow): Promise<void> {
       charged = cost;
     }
     updateJob(job.id, {
-      stage: 'transcribing',
-      progress: 20,
+      stage: 'analyzing',
+      progress: 12,
       title: source.title,
       duration_seconds: info.duration,
       credit_cost: cost,
     });
+    // Energia do áudio: usada para achar os momentos mais intensos. Se falhar, segue sem ela.
+    const norm = await measureEnergy(source.file)
+      .then(normalizeEnergy)
+      .catch((err) => {
+        console.warn(`[job ${job.id}] análise de energia falhou:`, err);
+        return [] as number[];
+      });
 
+    updateJob(job.id, { stage: 'transcribing', progress: 20 });
     const words = config.mock
       ? mockTranscribe(info.duration)
-      : await transcribe(await extractAudioSegments(source.file, tmp), opts.language, async (done, total) =>
-          updateJob(job.id, { progress: 20 + Math.round((done / total) * 30) }),
+      : await transcribe(
+          await extractAudioSegments(source.file, tmp, sttAudioFilter(opts.audioEnhance)),
+          opts.language,
+          async (done, total) => updateJob(job.id, { progress: 20 + Math.round((done / total) * 30) }),
         );
     if (words.length < 20) throw new UserError('Não encontramos fala suficiente no vídeo para gerar cortes.');
 
     updateJob(job.id, { stage: 'selecting', progress: 52 });
     const selections = config.mock
-      ? mockSelect(words, opts, info.duration)
-      : await selectClips(words, opts, source.title, info.duration);
+      ? mockSelect(words, opts, info.duration, norm)
+      : await selectClips(words, opts, source.title, info.duration, norm);
     if (!selections.length) throw new UserError('A IA não encontrou trechos bons para corte neste vídeo.');
 
     updateJob(job.id, { stage: 'rendering', progress: 60 });
@@ -100,8 +112,9 @@ export async function processJob(job: JobRow): Promise<void> {
     await mkdir(outDir, { recursive: true });
 
     const insert = db().prepare(
-      `insert into clips (id, job_id, user_id, idx, title, reason, score, start_ms, end_ms, transcript, file_path, aspect)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `insert into clips (id, job_id, user_id, idx, title, reason, score, start_ms, end_ms, transcript, file_path, aspect,
+                          post_caption, energy)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (let i = 0; i < selections.length; i++) {
       const s = selections[i];
@@ -110,6 +123,7 @@ export async function processJob(job: JobRow): Promise<void> {
       insert.run(
         randomUUID(), job.id, job.user_id, i, s.title, s.reason, s.score,
         Math.round(s.start * 1000), Math.round(s.end * 1000), rendered.transcript, rendered.file, opts.aspect,
+        s.post ?? null, s.energy ?? null,
       );
       updateJob(job.id, { progress: 60 + Math.round(((i + 1) / selections.length) * 38) });
     }
