@@ -1,5 +1,4 @@
-import { config } from './config.js';
-import { LLM_GATEWAY, LLM_GENERIC, apiError } from './errors.js';
+import { chat } from './llm.js';
 import { avgEnergy, segmentEnergyScore } from './energy.js';
 import { LENGTH_RANGES, type JobOptions, type Selection, type Word } from './types.js';
 
@@ -96,28 +95,7 @@ async function askLlm(transcript: string, opts: JobOptions, title: string, wante
     transcript,
   ].filter(Boolean).join('\n');
 
-  const gateway = config.llmViaAssemblyAI;
-  const res = await fetch(`${config.llmBaseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // O Gateway da AssemblyAI recebe a chave pura; APIs no padrão OpenAI usam "Bearer".
-      Authorization: gateway ? config.llmApiKey : `Bearer ${config.llmApiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.llmModel,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      ...(gateway ? { max_tokens: 4096 } : { response_format: { type: 'json_object' } }),
-    }),
-  });
-  if (!res.ok) {
-    throw apiError(gateway ? LLM_GATEWAY : LLM_GENERIC, res.status, await res.text(), gateway ? 'ASSEMBLYAI_API_KEY' : 'LLM_API_KEY');
-  }
-  const json: any = await res.json();
-  const content: string = json.choices?.[0]?.message?.content ?? '';
+  const content = await chat(system, user);
   const match = content.match(/\{[\s\S]*\}/);
   if (!match) return [];
   let parsed: any;
