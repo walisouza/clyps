@@ -1,3 +1,4 @@
+import type { CleanKind, Framing } from './framing';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export type JobOptions = {
@@ -74,6 +75,8 @@ export type EditorData = {
   };
   clean: { startMs: number; endMs: number };
   captions: CaptionSettings;
+  framing: Framing;
+  cleanKind: CleanKind;
   segments: Segment[];
   words: Word[];
 };

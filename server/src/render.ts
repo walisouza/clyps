@@ -3,8 +3,9 @@ import path from 'node:path';
 import { clipAudioFilter, passthroughAudioFilter } from './audio.js';
 import { buildAss } from './captions.js';
 import { config } from './config.js';
+import { framingFilter, targetSize, type CleanKind, type Framing } from './framing.js';
 import { audioChannels, burnFromClean, outputSize, probe, renderClip, type Probe } from './media.js';
-import { CAPTION_SCALE, type CaptionSettings, type JobOptions, type Word } from './types.js';
+import { CAPTION_SCALE, type Aspect, type CaptionSettings, type JobOptions, type Word } from './types.js';
 
 /** Folga (s) guardada antes e depois de cada clipe na versão limpa, para dar para estender o corte na edição. */
 export const CLEAN_PAD = 3;
@@ -25,8 +26,8 @@ export function wordsIn(words: Word[], start: number, end: number): Word[] {
 export const transcriptOf = (words: Word[]) => words.map((w) => w.word.trim()).filter(Boolean).join(' ');
 
 /**
- * Versão limpa do clipe: reenquadrada, com o áudio tratado e sem legenda, cobrindo a folga.
- * É a base do clipe final e das edições posteriores.
+ * Versão limpa do clipe: no formato do vídeo original (sem reenquadrar), com o áudio tratado e sem
+ * legenda, cobrindo a folga. É a base do clipe final e das edições (corte, legenda e enquadramento).
  */
 export async function renderClean(
   src: string,
@@ -42,8 +43,8 @@ export async function renderClean(
     out,
     startSec: range.start,
     durationSec: range.end - range.start,
-    size: outputSize(opts.aspect, info),
-    layout: opts.aspect === 'original' ? 'fill' : opts.layout,
+    size: outputSize('original', info),
+    layout: 'fill',
     hasAudio: info.hasAudio,
     // Áudio do Auphonic já vem tratado: só padroniza os canais.
     audioFilter: audioFile
@@ -66,6 +67,9 @@ export async function finalizeFromClean(input: {
   start: number;
   end: number;
   captions: CaptionSettings;
+  aspect: Aspect;
+  cleanKind: CleanKind;
+  framing: Framing;
   out: string;
 }): Promise<{ transcript: string }> {
   const clipWords = wordsIn(input.words, input.start, input.end);
@@ -73,8 +77,14 @@ export async function finalizeFromClean(input: {
   const assPath = `${input.out}.ass`;
   let useAss = false;
 
+  const info = await probe(input.clean);
+  const src = { w: info.width, h: info.height };
+  const target = targetSize(input.aspect, input.cleanKind, src);
+  // Clipe antigo já vem reenquadrado (com fundo desfocado, se era o caso): aí o zoom só recorta.
+  const framing = input.cleanKind === 'framed' ? { ...input.framing, layout: 'fill' as const } : input.framing;
+
   if (input.captions.enabled && clipWords.length) {
-    const { width, height } = await probe(input.clean);
+    const { w: width, h: height } = target;
     await writeFile(
       assPath,
       buildAss({
@@ -97,6 +107,7 @@ export async function finalizeFromClean(input: {
       out: tmp,
       offsetSec: input.start - input.cleanStart,
       durationSec: input.end - input.start,
+      framing: framingFilter(src, target, framing),
       assPath: useAss ? assPath : undefined,
     });
     await rename(tmp, input.out);

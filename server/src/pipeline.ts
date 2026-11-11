@@ -11,6 +11,7 @@ import { adjustCredits, db, updateJob, type JobRow } from './db.js';
 import { measureEnergy, normalizeEnergy } from './energy.js';
 import { UserError } from './errors.js';
 import { extractAudio, extractAudioSegments, extractClipAudio, probe, ytDownload, ytInfo } from './media.js';
+import { defaultFraming } from './framing.js';
 import { cleanFileName, cleanRange, clipFileName, finalizeFromClean, renderClean, type Range } from './render.js';
 import { heuristicSelect } from './heuristic.js';
 import { mockSelect, selectClips } from './select.js';
@@ -230,10 +231,12 @@ export async function processJob(job: JobRow): Promise<void> {
 
     const insert = db().prepare(
       `insert into clips (id, job_id, user_id, idx, title, reason, score, start_ms, end_ms, transcript, file_path, aspect,
-                          post_caption, energy, clean_path, clean_start_ms, clean_end_ms, words_json, captions_json)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          post_caption, energy, clean_path, clean_start_ms, clean_end_ms, words_json, captions_json,
+                          clean_kind, framing_json)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'source', ?)`,
     );
     const captions = captionsFromOptions(opts);
+    const framing = defaultFraming(opts.aspect, opts.layout);
     for (let i = 0; i < selections.length; i++) {
       const s = selections[i];
       const range = ranges[i];
@@ -243,13 +246,15 @@ export async function processJob(job: JobRow): Promise<void> {
       // Palavras do intervalo com folga, em tempo absoluto: permitem editar corte e legenda depois.
       const rangeWords = words.filter((w) => w.start >= range.start - 0.05 && w.end <= range.end + 0.05);
       const { transcript } = await finalizeFromClean({
-        clean, cleanStart: range.start, words: rangeWords, start: s.start, end: s.end, captions, out: file,
+        clean, cleanStart: range.start, words: rangeWords, start: s.start, end: s.end, captions,
+        aspect: opts.aspect, cleanKind: 'source', framing, out: file,
       });
       insert.run(
         randomUUID(), job.id, job.user_id, i, s.title, s.reason, s.score,
         Math.round(s.start * 1000), Math.round(s.end * 1000), transcript, file, opts.aspect,
         s.post ?? null, s.energy ?? null,
         clean, Math.round(range.start * 1000), Math.round(range.end * 1000), JSON.stringify(rangeWords), JSON.stringify(captions),
+        JSON.stringify(framing),
       );
       updateJob(job.id, { progress: 64 + Math.round(((i + 1) / selections.length) * 34) });
     }

@@ -1,3 +1,4 @@
+import type { Framing } from './framing';
 import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, VideoPreview } from './types';
 
 export type User = { id: string; email: string; credits: number; isAdmin: boolean };
@@ -80,6 +81,7 @@ export const api = {
       postCaption: string;
       captions: CaptionSettings;
       texts: string[];
+      framing: Framing;
     },
   ) => request<{ ok: true }>(`/clips/${clipId}/editor`, { method: 'PUT', body: JSON.stringify(body) }),
 

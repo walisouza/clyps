@@ -186,12 +186,16 @@ export async function burnFromClean(input: {
   out: string;
   offsetSec: number;
   durationSec: number;
+  /** Filtro de enquadramento que leva [0:v] para [base] (ver framing.ts). */
+  framing: string;
   assPath?: string;
 }): Promise<void> {
+  const chain = [input.framing, input.assPath ? `[base]ass='${escapeFilterPath(input.assPath)}'[v]` : `[base]null[v]`];
   await run('ffmpeg', [
     '-y', '-v', 'error',
     '-ss', Math.max(0, input.offsetSec).toFixed(3), '-i', input.clean, '-t', input.durationSec.toFixed(3),
-    ...(input.assPath ? ['-vf', `ass='${escapeFilterPath(input.assPath)}'`] : []),
+    '-filter_complex', chain.join(';'),
+    '-map', '[v]', '-map', '0:a?',
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '160k',
     '-movflags', '+faststart',

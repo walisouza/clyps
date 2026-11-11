@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
 import { db, type ClipRow } from './db.js';
 import { UserError } from './errors.js';
+import { defaultFraming, normalizeFraming, type CleanKind, type Framing } from './framing.js';
 import { finalizeFromClean, transcriptOf } from './render.js';
-import { normalizeCaptions, type CaptionSettings, type Word } from './types.js';
+import { normalizeCaptions, type Aspect, type CaptionSettings, type Layout, type Word } from './types.js';
 
 export type Segment = { start: number; end: number; text: string };
 
@@ -77,6 +78,18 @@ export function clipCaptions(clip: ClipRow): CaptionSettings {
   }
 }
 
+export const cleanKindOf = (clip: ClipRow): CleanKind => (clip.clean_kind === 'source' ? 'source' : 'framed');
+
+export function clipFraming(clip: ClipRow): Framing {
+  const fallback = defaultFraming(clip.aspect as Aspect, 'fill');
+  try {
+    const f = normalizeFraming(JSON.parse(clip.framing_json ?? '{}'), fallback);
+    return cleanKindOf(clip) === 'framed' ? { ...f, layout: 'fill' } : f;
+  } catch {
+    return fallback;
+  }
+}
+
 export const isEditable = (clip: ClipRow) => Boolean(clip.clean_path && clip.clean_start_ms !== null && existsSync(clip.clean_path));
 
 export type EditInput = {
@@ -87,6 +100,7 @@ export type EditInput = {
   postCaption?: string;
   captions?: unknown;
   texts?: string[];
+  framing?: unknown;
 };
 
 /** Valida e grava a edição; a re-renderização vai para a fila. */
@@ -114,15 +128,17 @@ export function saveEdit(clip: ClipRow, input: EditInput): void {
   const words = Array.isArray(input.texts) ? applyTexts(clipWords(clip), input.texts.map(String)) : clipWords(clip);
   const captions = normalizeCaptions(input.captions, clipCaptions(clip));
   const title = typeof input.title === 'string' && input.title.trim() ? input.title.trim().slice(0, 120) : clip.title;
+  let framing = normalizeFraming(input.framing, clipFraming(clip));
+  if (cleanKindOf(clip) === 'framed' || clip.aspect === 'original') framing = { ...framing, layout: 'fill' as Layout };
   const post = typeof input.postCaption === 'string' ? input.postCaption.slice(0, 2200) : clip.post_caption;
 
   db()
     .prepare(
       `update clips set start_ms = ?, end_ms = ?, title = ?, post_caption = ?, words_json = ?, captions_json = ?,
-         rerendering = 1, render_error = null
+         framing_json = ?, rerendering = 1, render_error = null
        where id = ?`,
     )
-    .run(startMs, endMs, title, post, JSON.stringify(words), JSON.stringify(captions), clip.id);
+    .run(startMs, endMs, title, post, JSON.stringify(words), JSON.stringify(captions), JSON.stringify(framing), clip.id);
   enqueue(clip.id);
 }
 
@@ -160,6 +176,9 @@ async function rerender(id: string): Promise<void> {
       start: clip.start_ms / 1000,
       end: clip.end_ms / 1000,
       captions: clipCaptions(clip),
+      aspect: clip.aspect as Aspect,
+      cleanKind: cleanKindOf(clip),
+      framing: clipFraming(clip),
       out: clip.file_path,
     });
     db()
@@ -195,6 +214,8 @@ export function editorData(clip: ClipRow) {
     },
     clean: { startMs: clip.clean_start_ms, endMs: clip.clean_end_ms },
     captions: clipCaptions(clip),
+    framing: clipFraming(clip),
+    cleanKind: cleanKindOf(clip),
     segments: segmentsOf(words),
     words,
   };

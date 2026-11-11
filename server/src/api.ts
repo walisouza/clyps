@@ -454,6 +454,7 @@ export function createApp() {
         postCaption: b.postCaption,
         captions: b.captions,
         texts: Array.isArray(b.texts) ? b.texts.slice(0, 5000) : undefined,
+        framing: b.framing,
       });
       res.json({ ok: true });
     } catch (err) {

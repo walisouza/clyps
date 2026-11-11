@@ -109,6 +109,8 @@ export type ClipRow = {
   version: number;
   rerendering: number;
   render_error: string | null;
+  clean_kind: string | null;
+  framing_json: string | null;
 };
 
 let conn: Database.Database | null = null;
@@ -143,6 +145,8 @@ export function db(): Database.Database {
     ensureColumn(conn, 'clips', 'version', 'integer not null default 0');
     ensureColumn(conn, 'clips', 'rerendering', 'integer not null default 0');
     ensureColumn(conn, 'clips', 'render_error', 'text');
+    ensureColumn(conn, 'clips', 'clean_kind', 'text'); // null = clipe antigo, versão limpa já reenquadrada
+    ensureColumn(conn, 'clips', 'framing_json', 'text');
   }
   return conn;
 }

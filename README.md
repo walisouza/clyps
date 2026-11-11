@@ -77,11 +77,12 @@ O banco já tem `users.credits` e `credit_ledger`. Cada job grava o custo em `jo
 
 ## Editar um clipe
 
-Cada clipe pronto tem um botão **Editar**: ajustar início e fim (com marcação pelo player), ligar ou desligar a legenda, trocar estilo, tamanho, posição e cor, corrigir o texto da legenda trecho a trecho e editar o título e a legenda do post. Ao salvar, o clipe é gerado de novo a partir de uma versão limpa guardada no servidor (já reenquadrada e com o áudio tratado, sem legenda, com 3 s de folga antes e depois), o que é bem mais rápido que o processamento completo.
+Cada clipe pronto tem um botão **Editar**: ajustar início e fim (com marcação pelo player), enquadrar o vídeo (zoom de 1× a 3×, arrastar para escolher o que aparece, alternar entre preencher a tela e vídeo inteiro com fundo desfocado), ligar ou desligar a legenda, trocar estilo, tamanho, posição e cor, corrigir o texto da legenda trecho a trecho e editar o título e a legenda do post. Ao salvar, o clipe é gerado de novo a partir de uma versão limpa guardada no servidor (no formato do vídeo original e com o áudio tratado, sem legenda, com 3 s de folga antes e depois), o que é bem mais rápido que o processamento completo.
 
 ## Limitações conhecidas
 
-- O enquadramento `fill` corta pelo centro; ainda não segue o rosto de quem fala.
+- O enquadramento começa pelo centro e é ajustado à mão no editor; ainda não segue o rosto de quem fala.
+- Clipes gerados antes do enquadramento guardaram a versão limpa já recortada: neles o zoom só mostra o que já estava na tela.
 - Um job por vez e sem cancelamento no meio do processamento.
 - O editor só estende o corte até 3 s antes e depois do trecho escolhido (a folga guardada na versão limpa); clipes gerados antes do editor existir não podem ser editados.
 - Banco SQLite num único servidor: ótimo para uso interno, mas para um SaaS com muitos usuários vale migrar para Postgres e separar a fila.

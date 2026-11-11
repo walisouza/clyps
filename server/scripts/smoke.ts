@@ -4,6 +4,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { run } from '../src/exec.js';
+import { defaultFraming } from '../src/framing.js';
 import { probe } from '../src/media.js';
 import { cleanFileName, cleanRange, clipFileName, finalizeFromClean, renderClean } from '../src/render.js';
 import { mockSelect } from '../src/select.js';
@@ -41,7 +42,8 @@ for (const v of variants) {
     const clean = cleanFileName(outDir, n);
     const file = clipFileName(outDir, n++);
     await renderClean(src, info, range, opts, clean);
-    await finalizeFromClean({ clean, cleanStart: range.start, words, start: s.start, end: s.end, captions: captionsFromOptions(opts), out: file });
+    await finalizeFromClean({ clean, cleanStart: range.start, words, start: s.start, end: s.end, captions: captionsFromOptions(opts),
+      aspect: opts.aspect, cleanKind: 'source', framing: defaultFraming(opts.aspect, opts.layout), out: file });
     const p = await probe(file);
     console.log(
       `${path.basename(file)}  ${opts.aspect} ${opts.layout} ${opts.captionStyle}  →  ${p.width}x${p.height}  ${p.duration.toFixed(1)}s  áudio:${p.hasAudio}`,
