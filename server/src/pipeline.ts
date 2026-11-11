@@ -12,6 +12,7 @@ import { measureEnergy, normalizeEnergy } from './energy.js';
 import { UserError } from './errors.js';
 import { extractAudio, extractAudioSegments, extractClipAudio, probe, ytDownload, ytInfo } from './media.js';
 import { defaultFraming } from './framing.js';
+import { addTrendTags } from './trends.js';
 import { cleanFileName, cleanRange, clipFileName, finalizeFromClean, renderClean, type Range } from './render.js';
 import { heuristicSelect } from './heuristic.js';
 import { mockSelect, selectClips } from './select.js';
@@ -205,6 +206,13 @@ export async function processJob(job: JobRow): Promise<void> {
       }
     }
     if (!selections.length) throw new UserError('Não encontramos trechos bons para corte neste vídeo.');
+    // Hashtags em alta (Trend Scanner) que têm relação direta com o que é falado no clipe.
+    if (opts.language === 'pt') {
+      selections = selections.map((s) => {
+        const text = words.filter((w) => w.start >= s.start && w.end <= s.end).map((w) => w.word).join(' ');
+        return s.post ? { ...s, post: addTrendTags(s.post, `${s.title} ${text}`) } : s;
+      });
+    }
 
     // Intervalo de cada clipe com folga: base da versão limpa (e do áudio do Auphonic).
     const ranges = selections.map((s) => cleanRange(s, info.duration));

@@ -1,6 +1,7 @@
 import { chat } from './llm.js';
 import { avgEnergy, segmentEnergyScore } from './energy.js';
 import { LENGTH_RANGES, type JobOptions, type Selection, type Word } from './types.js';
+import { trendsPromptLine } from './trends.js';
 
 const WINDOW_SECONDS = 30 * 60;
 const LANGUAGE_NAMES = { pt: 'português do Brasil', en: 'English', es: 'español' } as const;
@@ -90,6 +91,7 @@ async function askLlm(transcript: string, opts: JobOptions, title: string, wante
   const user = [
     `Título do vídeo: ${title}`,
     opts.context ? `Contexto do criador: ${opts.context}` : '',
+    trendsPromptLine(),
     '',
     'Transcrição:',
     transcript,

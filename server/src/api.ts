@@ -18,6 +18,7 @@ import { editorData, isEditable, saveEdit } from './editor.js';
 import { UserError } from './errors.js';
 import { normalizeOptions } from './types.js';
 import { deletionPage, privacyPage, termsPage } from './legal.js';
+import { getTrends, suggestHashtags } from './trends.js';
 import {
   accountNames, createPosts, disconnect, finishLogin, listAccounts, loginUrl, postJson, runDuePosts, verifyPublicClip, type PostRow,
 } from './meta.js';
@@ -444,6 +445,24 @@ export function createApp() {
     if (!clip || !existsSync(clip.file_path)) return void res.status(404).json({ error: 'Link inválido ou expirado.' });
     res.setHeader('Cache-Control', 'no-store');
     res.sendFile(clip.file_path, { headers: { 'Content-Type': 'video/mp4' } });
+  });
+
+  // ── Trend Scanner ──
+  api.get('/trends', requireAuth, async (req, res) => {
+    res.json(await getTrends(req.query.refresh === '1'));
+  });
+
+  api.get('/trends/hashtags', requireAuth, async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    let text = String(req.query.text ?? '').slice(0, 5000);
+    if (req.query.clipId) {
+      const clip = db().prepare('select title, transcript, post_caption from clips where id = ? and user_id = ?').get(String(req.query.clipId), user.id) as
+        | { title: string; transcript: string | null; post_caption: string | null }
+        | undefined;
+      if (clip) text = `${clip.title} ${clip.transcript ?? ''} ${clip.post_caption ?? ''} ${text}`;
+    }
+    await getTrends();
+    res.json({ hashtags: suggestHashtags(text) });
   });
 
   // ── Meta (Facebook e Instagram) ──

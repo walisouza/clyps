@@ -275,3 +275,19 @@ h2 .badge { margin-left: 8px; vertical-align: middle; }
 .post-list { list-style: none; margin: 4px 0 0; padding: 10px 0 0; border-top: 1px dashed rgba(20, 19, 15, 0.25); display: grid; gap: 6px; font-size: 13px; }
 .post-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .post-row .post-error { flex-basis: 100%; }
+
+/* ── Trend Scanner ── */
+.hashtag-chips { display: grid; gap: 6px; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-chip { font: 500 13px/1 var(--mono, monospace); padding: 6px 9px; border: 1.5px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink); cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.tag-chip.hot { border-color: var(--cut); color: #b8340f; }
+.tag-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.trend-queries { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.trend-queries li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed rgba(20, 19, 15, 0.2); }
+.trend-q { font-weight: 700; flex: 1 1 180px; }
+.trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.trend { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.trend img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-bottom: 1.5px solid var(--ink); background: #ddd; }
+.trend-body { padding: 14px 16px 16px; display: grid; gap: 8px; justify-items: start; }
+.trend-body h3 { margin: 0; font-size: 20px; line-height: 1.15; }
+.trend.niche { box-shadow: 4px 4px 0 var(--cut); }

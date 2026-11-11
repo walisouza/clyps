@@ -8,6 +8,7 @@ import History from './pages/History';
 import JobDetail from './pages/JobDetail';
 import Login from './pages/Login';
 import NewClip from './pages/NewClip';
+import Trends from './pages/Trends';
 
 export function Logo() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
             Novo corte
           </NavLink>
           <NavLink to="/historico">Histórico</NavLink>
+          <NavLink to="/em-alta">Em alta</NavLink>
           <NavLink to="/conta">Conta</NavLink>
         </nav>
         <div className="account">
@@ -74,6 +76,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<NewClip features={session.features} />} />
           <Route path="/historico" element={<History />} />
+          <Route path="/em-alta" element={<Trends />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/clips/:id/editar" element={<ClipEditor />} />
           <Route path="/conta" element={<AccountPage user={user} />} />

@@ -144,3 +144,19 @@ export type MetaAccount = {
   updatedAt: string;
 };
 export type MetaStatus = { configured: boolean; callbackUrl: string; accounts: MetaAccount[] };
+
+export type TrendNews = { title: string; url: string; source: string };
+export type Trend = { title: string; traffic: string; startedAt: string | null; picture: string | null; news: TrendNews[]; niche: boolean; hashtag: string };
+export type NicheQuery = { query: string; value: string; kind: 'rising' | 'top'; seed: string; hashtag: string };
+export type TrendsData = {
+  geo: string;
+  niche: { name: string; seeds: string[] };
+  trending: Trend[];
+  nicheQueries: NicheQuery[];
+  trendingAt: string | null;
+  nicheAt: string | null;
+  trendingError: string | null;
+  nicheError: string | null;
+  refreshing: boolean;
+};
+export type HashtagSuggestion = { tag: string; reason: 'em alta' | 'nicho em alta' | 'nicho' };

@@ -1,6 +1,7 @@
 import { avgEnergy, segmentEnergyScore } from './energy.js';
 import { refine } from './select.js';
 import { LENGTH_RANGES, type JobOptions, type Selection, type Word } from './types.js';
+import { suggestHashtags } from './trends.js';
 
 type Sentence = { start: number; end: number; text: string; words: number };
 
@@ -91,7 +92,12 @@ export function heuristicSelect(words: Word[], opts: JobOptions, videoDuration: 
   return refine(shortlist, words, opts, videoDuration, norm).map((s) => {
     const opening = sents.filter((x) => x.start >= s.start - 0.2 && x.end <= s.end + 0.2).slice(0, 2);
     const text = cut(opening.map((x) => x.text).join(' '), 220);
-    const tags = opts.language === 'en' ? '#shorts #reels #clips' : opts.language === 'es' ? '#shorts #reels #cortes' : '#cortes #shorts #reels';
+    const tags =
+      opts.language === 'en'
+        ? '#shorts #reels #clips'
+        : opts.language === 'es'
+          ? '#shorts #reels #cortes'
+          : [...suggestHashtags(text, 5).map((h) => h.tag), '#cortes'].join(' ');
     return { ...s, post: `${text}\n\n${tags}`, energy: s.energy ?? Math.round(100 * avgEnergy(norm, s.start, s.end)) };
   });
 }

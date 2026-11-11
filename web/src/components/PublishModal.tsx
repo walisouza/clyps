@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Clip, MetaStatus, Network } from '../lib/types';
+import HashtagChips from './HashtagChips';
 import Segmented from './Segmented';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -118,6 +119,7 @@ export default function PublishModal({ clip, caption, onClose, onDone }: { clip:
               Legenda
               <textarea rows={6} value={text} maxLength={2200} onChange={(e) => setText(e.target.value)} />
             </label>
+            <HashtagChips clipId={clip.id} text={text} onChange={setText} />
 
             <Segmented
               label="Quando"

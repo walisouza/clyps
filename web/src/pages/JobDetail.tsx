@@ -264,6 +264,7 @@ export default function JobDetail() {
 
       {modal && (
         <PostCaptionModal
+          clipId={modal.clip.id}
           title={modal.clip.title}
           caption={modal.clip.post_caption || fallbackCaption(modal.clip)}
           downloading={modal.downloading}

@@ -1,5 +1,5 @@
 import type { Framing } from './framing';
-import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, MetaStatus, Network, Post, VideoPreview } from './types';
+import type { CaptionSettings, Clip, EditorData, Features, Job, JobOptions, HashtagSuggestion, MetaStatus, Network, Post, TrendsData, VideoPreview } from './types';
 
 export type User = { id: string; email: string; credits: number; isAdmin: boolean };
 
@@ -84,6 +84,9 @@ export const api = {
       framing: Framing;
     },
   ) => request<{ ok: true }>(`/clips/${clipId}/editor`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  trends: (refresh = false) => request<TrendsData>(`/trends${refresh ? '?refresh=1' : ''}`),
+  hashtags: (clipId: string) => request<{ hashtags: HashtagSuggestion[] }>(`/trends/hashtags?clipId=${encodeURIComponent(clipId)}`),
 
   meta: {
     status: () => request<MetaStatus>('/meta/status'),

@@ -5,6 +5,7 @@ import { claimNextJob, db, recoverInterruptedJobs, staleFailedUploads, updateJob
 import { resumePendingRerenders } from './editor.js';
 import { startScheduler } from './meta.js';
 import { processJob } from './pipeline.js';
+import { startTrends } from './trends.js';
 
 let stopping = false;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -32,6 +33,7 @@ db();
 recoverInterruptedJobs();
 resumePendingRerenders();
 startScheduler();
+startTrends();
 
 const KEEP_FAILED_UPLOAD_DAYS = 7;
 async function cleanupFailedUploads() {

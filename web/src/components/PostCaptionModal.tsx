@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import HashtagChips from './HashtagChips';
 
 /** Popup com a legenda sugerida para o post. Editável antes de copiar. */
 export default function PostCaptionModal({
+  clipId,
   title,
   caption,
   downloading,
   onClose,
 }: {
+  clipId: string;
   title: string;
   caption: string;
   downloading: boolean;
@@ -51,6 +54,7 @@ export default function PostCaptionModal({
         </div>
         {downloading && <p className="ok small">O download de “{title}” começou.</p>}
         <textarea ref={areaRef} rows={7} value={text} onChange={(e) => setText(e.target.value)} />
+        <HashtagChips clipId={clipId} text={text} onChange={setText} />
         <div className="row">
           <button type="button" className="primary" onClick={copy}>
             {copied ? 'Copiada!' : 'Copiar legenda'}

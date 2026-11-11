@@ -92,6 +92,12 @@ Páginas públicas para cadastrar no app (Configurações do app → Básico): `
 
 Com o app em modo de desenvolvimento, funciona para as contas de quem tem função no app (administrador, desenvolvedor ou testador). O Instagram precisa ser profissional (Criador ou Empresa) e ligado a uma Página. A Meta baixa o vídeo por um link temporário assinado do próprio Clyps, então o site precisa estar em HTTPS. No Facebook, clipes 9:16 de 3 a 90 s saem como Reels; os outros saem como vídeo da Página.
 
+## Trend Scanner (Em alta)
+
+A página **Em alta** mostra o que está sendo buscado no Google no Brasil agora (RSS público do Google Trends) e as buscas que mais cresceram nos últimos 7 dias no nicho (gospel e igreja por padrão), com hashtag pronta para copiar. As hashtags em alta que têm relação com o que é falado no clipe entram sozinhas na legenda do post, e a legenda (no download e no Publicar) mostra sugestões para acrescentar com um toque. Sem chave e sem custo.
+
+Para mudar o nicho, no `.env`: `TRENDS_NICHE_NAME`, `TRENDS_SEEDS` (termos que o scanner acompanha, separados por vírgula), `TRENDS_NICHE_WORDS` (palavras que marcam um assunto como do nicho) e `TRENDS_BASE_TAGS`. As buscas do nicho usam a mesma API da página do Google Trends, que às vezes limita servidores; nesse caso a página mostra a última leitura.
+
 ## Limitações conhecidas
 
 - O enquadramento começa pelo centro e é ajustado à mão no editor; ainda não segue o rosto de quem fala.
