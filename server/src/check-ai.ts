@@ -2,7 +2,7 @@
 //   docker compose exec app npx tsx src/check-ai.ts
 // Mostra se cada chave é aceita e quais formatos de pedido o LLM Gateway aceita. Nunca imprime as chaves.
 import { config, isPlaceholder } from './config.js';
-import { probeGateway } from './llm.js';
+import { chat, probeGateway } from './llm.js';
 
 const mask = (k: string) => (k ? `${k.slice(0, 4)}… (${k.length} caracteres)` : '(vazia)');
 const line = (ok: boolean, text: string) => console.log(`${ok ? '  OK    ' : '  FALHA '} ${text}`);
@@ -29,6 +29,29 @@ if (config.sttProvider === 'speaches') {
     line(false, `sem resposta (${(err as Error).message}). Confira: docker compose ps / docker compose logs speaches`);
   }
   console.log(config.llmConfigured ? '' : 'IA de texto: não configurada — os trechos serão escolhidos pela energia da fala e pelas frases.\n');
+}
+
+if (config.sttProvider === 'openai') {
+  console.log(`Transcrição (padrão OpenAI) — ${config.sttBaseUrl} · modelo ${config.sttModel} · chave ${mask(config.sttApiKey)}`);
+  try {
+    const r = await fetch(`${config.sttBaseUrl}/models`, { headers: { Authorization: `Bearer ${config.sttApiKey}` } });
+    line(r.ok, `chave: HTTP ${r.status}${r.ok ? '' : ` — ${(await r.text()).replace(/\s+/g, ' ').slice(0, 160)}`}`);
+  } catch (err) {
+    line(false, `sem resposta (${(err as Error).message})`);
+  }
+  console.log('');
+}
+
+if (config.llmConfigured && !config.llmViaAssemblyAI) {
+  console.log(`IA de texto — ${config.llmBaseUrl} · modelo ${config.llmModel} · chave ${mask(config.llmApiKey)}`);
+  if (isPlaceholder(config.llmApiKey)) line(false, 'a chave ainda é o texto de exemplo');
+  try {
+    const reply = await chat('Responda só com JSON.', 'Responda exatamente {"ok":true}');
+    line(/ok/.test(reply), `resposta: ${reply.replace(/\s+/g, ' ').slice(0, 80)}`);
+  } catch (err) {
+    line(false, (err as Error).message);
+  }
+  console.log('');
 }
 
 if (config.assemblyaiApiKey) {
